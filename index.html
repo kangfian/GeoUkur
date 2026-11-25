@@ -6,14 +6,14 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@600;700&family=JetBrains+Mono:wght@700&family=Space+Grotesk:wght@600;700&display=swap">
 <link rel="stylesheet" href="./css/style.css"></head>
 <body>
-<header><div><b class="br">GeoUkur</b> <span class="chip">V2.4 by Irpan</span><div class="st mono"><i id="dot"></i><span id="stat">Memuat…</span></div></div>
+<header><div><b class="br">GeoUkur</b> <span class="chip">V2.4 PWA</span><div class="st mono"><i id="dot"></i><span id="stat">Memuat…</span></div></div>
 <div class="mono bx" id="gpsb">GPS —</div></header>
 <div id="inst" class="inst"><span id="inst-t"></span><button id="inst-ok" class="pri">Pasang</button><button id="inst-x" class="x" aria-label="Tutup"></button></div>
 
 <section id="v-peta" class="v on"><div id="map"></div>
- <div class="srch"><input id="sq" placeholder="Cari desa / koordinat (3.59, 98.67)" enterkeyhint="search" autocomplete="off"><button id="sb" class="pri" aria-label="Cari"></button></div><div id="sr" class="sr"></div>
+ <div class="srch"><input id="sq" placeholder="Cari desa / koordinat (3.59, 98.67)" enterkeyhint="search" autocomplete="off"><button id="sb" class="pri" aria-label="Cari"></button><button id="sx" class="sec" aria-label="Hapus pencarian"></button></div><div id="sr" class="sr"></div>
  <div class="hud" id="hud"><div><small>LUAS</small><b id="m2" class="mono">0,00</b><u>m²</u></div><div><small>HEKTAR</small><b id="ha" class="mono g">0,0000</b><u>Ha</u></div><div><small>KELILING</small><b id="km" class="mono">0,00</b><u>m</u></div></div>
- <div class="rail"><button id="b-loc" aria-label="GPS"></button><button id="b-all" aria-label="Lihat semua lahan"></button><button id="b-undo" aria-label="Undo"></button><button id="b-reset" class="red" aria-label="Reset"></button></div>
+ <div class="rail"><button id="b-sr" aria-label="Cari lokasi"></button><button id="b-loc" aria-label="GPS"></button><button id="b-all" aria-label="Lihat semua lahan"></button><button id="b-undo" aria-label="Undo"></button><button id="b-reset" class="red" aria-label="Reset"></button></div>
  <div id="ret"></div>
  <div class="dock" id="dock"><button id="b-pt" class="sec"></button><button id="b-save" class="pri">Simpan Lahan</button><button id="b-gps" class="sec"></button></div>
  <div class="card" id="card"></div></section>
@@ -21,8 +21,8 @@
 <section id="v-persil" class="v"><div class="pad"><input id="q" placeholder="Cari nama petani atau blok…"><select id="fg"></select><div id="sum" class="mono sum"></div><div id="grp"></div></div></section>
 
 <section id="v-sinkron" class="v"><div class="pad"><div class="box" id="sy"></div>
- <label>URL Server Google Apps Script (/exec)<input id="f-url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" autocapitalize="off"></label>
- <button class="sec full" id="b-test">Simpan URL &amp; Uji Koneksi</button><button class="pri full" id="b-sync"></button><div class="box sm mono" id="sy-log" style="margin-top:12px"></div></div></section>
+ <details id="d-url" class="box" style="margin-top:12px"><summary>Ubah URL server</summary><label>URL baru (/exec)<input id="f-url" placeholder="Tempel URL baru di sini" autocomplete="off" autocapitalize="off"></label>
+ <button class="sec full" id="b-test">Simpan URL &amp; Uji Koneksi</button></details><button class="pri full" id="b-sync"></button><div class="box sm mono" id="sy-log" style="margin-top:12px"></div></div></section>
 
 <div id="sheet" class="sheet"><div class="sh-in"><div class="row"><h2>Simpan Hasil Pengukuran</h2><button id="s-x" class="x"></button></div>
  <div class="box sm"><div class="mono" id="s-sum"></div></div>

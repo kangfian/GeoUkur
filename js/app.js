@@ -68,7 +68,7 @@ let map, base, poly, grp, sg, hl, tmp, sig = '';
 function initMap() {
   map = L.map('map', { zoomControl: true, attributionControl: false, tap: true }).setView([3.595, 98.672], 15);
   base = T[S.layer]().addTo(map); sg = L.layerGroup().addTo(map); hl = L.layerGroup().addTo(map); tmp = L.layerGroup().addTo(map); grp = L.layerGroup().addTo(map);
-  map.on('click', e => { clearHl(); $('#sr').className = 'sr'; S.pts.push([e.latlng.lat, e.latlng.lng]); draw(); });
+  map.on('click', e => { clearHl(); tmp.clearLayers(); $('#sr').className = 'sr'; S.pts.push([e.latlng.lat, e.latlng.lng]); draw(); });
   map.on('zoomend', () => $('#map').classList.toggle('nolbl', map.getZoom() < 16)); $('#map').classList.toggle('nolbl', map.getZoom() < 16);
 }
 function setLayer() { S.layer = S.layer === 'sat' ? 'osm' : 'sat'; ls('gu_layer', S.layer); map.removeLayer(base); base = T[S.layer]().addTo(map); base.bringToBack(); }
@@ -125,7 +125,7 @@ function pin(ll) { tmp.clearLayers(); L.circleMarker(ll, { radius: 11, weight: 3
 async function search() {
   const q = $('#sq').value.trim(), box = $('#sr'); if (!q) return; box.className = 'sr';
   const m = q.match(LL);
-  if (m) { const a = +m[1].replace(',', '.'), b = +m[2].replace(',', '.'); if (Math.abs(a) <= 90 && Math.abs(b) <= 180) { map.flyTo([a, b], 18); pin([a, b]); return; } return toast('Koordinat di luar jangkauan (lintang −90…90, bujur −180…180)'); }
+  if (m) { const a = +m[1].replace(',', '.'), b = +m[2].replace(',', '.'); if (Math.abs(a) <= 90 && Math.abs(b) <= 180) { map.flyTo([a, b], 18); pin([a, b]); $('.srch').classList.remove('on'); return; } return toast('Koordinat di luar jangkauan (lintang −90…90, bujur −180…180)'); }
   const ql = q.toLowerCase(), loc = all().filter(r => (r.nama_petani + ' ' + r.nama_lahan + ' ' + r.kelompok_tani).toLowerCase().includes(ql)).slice(0, 4).map(r => ({ t: r.nama_petani + ' — ' + r.nama_lahan, s: 'Lahan tersimpan • ' + r.kelompok_tani, row: r }));
   found = loc; renderFound(); toast('Mencari…');
   try {
@@ -137,7 +137,7 @@ async function search() {
 }
 function renderFound() { const b = $('#sr'); b.innerHTML = found.map((f, i) => `<button data-i="${i}"><b>${esc(f.t)}</b><small>${esc(f.s)}</small></button>`).join(''); b.className = found.length ? 'sr on' : 'sr'; }
 $('#sr').onclick = e => {
-  const b = e.target.closest('button'); if (!b) return; const f = found[+b.dataset.i]; $('#sr').className = 'sr';
+  const b = e.target.closest('button'); if (!b) return; const f = found[+b.dataset.i]; $('#sr').className = 'sr'; $('.srch').classList.remove('on');
   if (f.row) return show(f.row);
   if (f.bb) map.flyToBounds([[f.bb[0], f.bb[2]], [f.bb[1], f.bb[3]]], { maxZoom: 17 }); else map.flyTo(f.ll, 16); pin(f.ll);
 };
@@ -191,6 +191,7 @@ $('#s-ok').onclick = () => {
 
 // ---------- Tampilan ----------
 function renderStatus() {
+  if (!okCfg()) $('#d-url').open = true;
   const n = S.q.length ? ` • ${S.q.length} antre` : '', ok = okCfg();
   $('#dot').className = !ok ? 'off' : S.net ? 'on' : S.net === false ? 'off' : '';
   $('#stat').textContent = !ok ? 'URL server belum diatur' : S.net ? 'Terhubung' + n : S.net === false ? 'Tidak terhubung' + n : 'Menghubungkan…';
@@ -221,7 +222,7 @@ addEventListener('appinstalled', () => { hideInst(); dp = null; });
 // ---------- Init ----------
 function init() {
   const set = (id, h) => $(id).innerHTML = h;
-  set('#b-loc', ic('target')); set('#b-all', ic('fit')); set('#b-undo', ic('undo')); set('#b-reset', ic('trash')); set('#sb', ic('search')); set('#inst-x', ic('x'));
+  set('#b-loc', ic('target')); set('#b-all', ic('fit')); set('#b-undo', ic('undo')); set('#b-reset', ic('trash')); set('#sb', ic('search')); set('#b-sr', ic('search')); set('#sx', ic('x')); set('#inst-x', ic('x'));
   set('#b-pt', ic('plus') + ' TITIK'); set('#b-gps', ic('pin') + ' GPS'); set('#s-x', ic('x')); set('#b-sync', ic('sync') + ' Sinkronkan sekarang');
   const N = document.querySelectorAll('nav button'); N[0].innerHTML = ic('map') + 'PETA'; N[1].innerHTML = ic('list') + 'PERSIL'; N[2].innerHTML = ic('layers') + 'SATELIT'; N[3].innerHTML = ic('sync') + 'SINKRON';
   N.forEach(b => b.onclick = () => b.dataset.v ? go(b.dataset.v) : (setLayer(), toast(S.layer === 'sat' ? 'Citra satelit' : 'Peta jalan')));
@@ -233,15 +234,17 @@ function init() {
   $('#b-gps').onclick = () => startGps(() => { S.pts.push(S.gps.ll); draw(); map.setView(S.gps.ll, Math.max(map.getZoom(), 19)); });
   $('#b-pt').onclick = () => { const c = map.getCenter(); S.pts.push([c.lat, c.lng]); draw(); };
   $('#b-save').onclick = openSheet;
+  const srClose = () => { $('.srch').classList.remove('on'); $('#sq').value = ''; $('#sr').className = 'sr'; tmp.clearLayers(); };
+  $('#b-sr').onclick = () => { const b = $('.srch'); if (b.classList.contains('on')) srClose(); else { b.classList.add('on'); $('#sq').focus(); } };
+  $('#sx').onclick = () => { if ($('#sq').value) { $('#sq').value = ''; $('#sr').className = 'sr'; tmp.clearLayers(); $('#sq').focus(); } else srClose(); };
   $('#sb').onclick = search; $('#sq').onkeydown = e => e.key === 'Enter' && search();
   $('#q').oninput = e => { S.fq = e.target.value; renderList(); }; $('#fg').onchange = e => { S.fg = e.target.value; renderList(); };
   $('#b-sync').onclick = async () => { toast('Menyinkronkan…'); await flush(); const ok = await refresh(true); if (ok) { go('peta'); setTimeout(fitAll, 80); toast('Tersinkron: ' + all().length + ' lahan ditampilkan'); } else toast('Gagal: ' + S.err); };
   $('#b-test').onclick = async () => {
-    const u = $('#f-url').value.trim(); if (u) ls('gu_url', u);
-    if (!okCfg()) return toast('URL harus diawali https://script.google.com/ dan berakhiran /exec');
+    const u = $('#f-url').value.trim(); if (u) ls('gu_url', u); $('#f-url').value = '';
+    if (!okCfg()) return toast('URL harus diawali https://script.google.com/ dan berakhiran /exec'); $('#d-url').open = false;
     const t0 = Date.now(); try { const r = await get({ action: 'ping' }); if (r.status !== 'success') throw new Error(r.message || 'Respons tidak valid'); toast('Terhubung ✓ (' + (Date.now() - t0) + ' ms)'); await flush(); await refresh(true); } catch (e) { S.net = false; S.err = e.message; renderAll(); toast('Gagal terhubung'); }
   };
-  $('#f-url').value = okCfg() ? gasUrl() : '';
   $('#inst-ok').onclick = async () => { if (!dp) return; dp.prompt(); await dp.userChoice; dp = null; hideInst(); };
   $('#inst-x').onclick = () => { sessionStorage.setItem('gu_ix', 1); hideInst(); };
   addEventListener('online', () => { flush(); refresh(); });
