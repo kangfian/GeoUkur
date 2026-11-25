@@ -141,7 +141,7 @@ function renderStatus() {
   $('#stat').textContent = !okCfg() ? 'Konfigurasi belum lengkap' : on ? 'Online' + (S.q.length ? ` • ${S.q.length} antre` : '') : 'Offline' + (S.q.length ? ` • ${S.q.length} antre` : '');
   $('#sy').innerHTML = `<div class="mono">Status: ${on ? 'ONLINE' : 'OFFLINE'}</div><div class="mono">Data tersimpan: ${all().length} bidang</div><div class="mono">Antrean kirim: ${S.q.length}</div><div class="mono">Sinkron terakhir: ${S.last ? new Date(S.last).toLocaleString('id-ID') : '—'}</div>`;
 }
-function renderAll() { renderStatus(); renderList(); const e = $('#cn'); if (e) e.textContent = all().length; }
+function renderAll() { renderStatus(); renderList(); }
 function go(v) {
   S.view = v; document.querySelectorAll('.v').forEach(e => e.classList.toggle('on', e.id === 'v-' + v));
   document.querySelectorAll('nav [data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === v));
@@ -151,7 +151,7 @@ function go(v) {
 // ---------- Init ----------
 function init() {
   const set = (id, h) => $(id).innerHTML = h;
-  set('#b-loc', ic('target')); set('#b-undo', ic('undo')); set('#b-reset', ic('trash')); set('#b-gps', ic('pin') + ' + TITIK GPS'); set('#b-list', ic('list') + ' <span id="cn">0</span>'); set('#s-x', ic('x')); set('#b-sync', ic('sync') + ' Sinkronkan sekarang');
+  set('#b-loc', ic('target')); set('#b-undo', ic('undo')); set('#b-reset', ic('trash')); set('#b-pt', ic('plus') + ' TITIK'); set('#b-gps', ic('pin') + ' GPS'); set('#s-x', ic('x')); set('#b-sync', ic('sync') + ' Sinkronkan sekarang');
   const N = document.querySelectorAll('nav button'); N[0].innerHTML = ic('map') + 'PETA'; N[1].innerHTML = ic('list') + 'PERSIL'; N[2].innerHTML = ic('layers') + 'SATELIT'; N[3].innerHTML = ic('sync') + 'SINKRON';
   N.forEach(b => b.onclick = () => b.dataset.v ? go(b.dataset.v) : (setLayer(), toast(S.layer === 'sat' ? 'Citra satelit' : 'Peta jalan')));
   initMap(); draw();
@@ -159,7 +159,8 @@ function init() {
   $('#b-undo').onclick = () => { S.pts.pop(); draw(); };
   $('#b-reset').onclick = () => { if (S.pts.length && confirm('Hapus semua titik?')) { S.pts = []; draw(); } };
   $('#b-gps').onclick = () => startGps(() => { S.pts.push(S.gps.ll); draw(); map.setView(S.gps.ll, Math.max(map.getZoom(), 19)); });
-  $('#b-save').onclick = openSheet; $('#b-list').onclick = () => go('persil');
+  $('#b-pt').onclick = () => { const c = map.getCenter(); S.pts.push([c.lat, c.lng]); draw(); };
+  $('#b-save').onclick = openSheet;
   $('#q').oninput = e => { S.fq = e.target.value; renderList(); }; $('#fg').onchange = e => { S.fg = e.target.value; renderList(); };
   $('#b-sync').onclick = () => { flush(); refresh(true); };
   addEventListener('online', () => { flush(); refresh(); }); addEventListener('offline', renderAll);
@@ -167,6 +168,7 @@ function init() {
   renderAll();
   const id = new URLSearchParams(location.search).get('id');
   if (id) { const r = all().find(x => x.id === id); if (r) view(r); get({ action: 'getById', id }).then(x => x.status === 'success' && (!r || S.view === 'peta') && view(x.data[0])).catch(() => !r && toast('Data tidak ditemukan')); }
+  if (!id && !S.pts.length) toast('Ketuk peta atau tekan + TITIK (bidik silang) untuk menambah titik');
   refresh().then(flush);
   setInterval(() => document.visibilityState === 'visible' && navigator.onLine && refresh(), 60000);
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
