@@ -1,0 +1,33 @@
+<!DOCTYPE html><html lang="id"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#047857"><link rel="manifest" href="./manifest.json"><link rel="apple-touch-icon" href="./icon-192.png">
+<title>GeoUkur by Irpan</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@600;700&family=JetBrains+Mono:wght@700&family=Space+Grotesk:wght@600;700&display=swap">
+<link rel="stylesheet" href="./css/style.css"></head>
+<body>
+<header><div><b class="br">GeoUkur</b> <span class="chip">V2.3 PWA</span><div class="st mono"><i id="dot"></i><span id="stat">Memuat…</span></div></div>
+<div class="mono bx" id="gpsb">GPS —</div></header>
+
+<section id="v-peta" class="v on"><div id="map"></div>
+ <div class="hud" id="hud"><div><small>LUAS</small><b id="m2" class="mono">0,00</b><u>m²</u></div><div><small>HEKTAR</small><b id="ha" class="mono g">0,0000</b><u>Ha</u></div><div><small>KELILING</small><b id="km" class="mono">0,00</b><u>m</u></div></div>
+ <div class="rail"><button id="b-loc" aria-label="GPS"></button><button id="b-undo" aria-label="Undo"></button><button id="b-reset" class="red" aria-label="Reset"></button></div>
+ <div class="dock" id="dock"><button id="b-gps" class="sec"></button><button id="b-save" class="pri">Simpan Lahan</button><button id="b-list" class="sec"></button></div>
+ <div class="card" id="card"></div></section>
+
+<section id="v-persil" class="v"><div class="pad"><input id="q" placeholder="Cari nama petani atau blok…"><select id="fg"></select><div id="sum" class="mono sum"></div><div id="grp"></div></div></section>
+
+<section id="v-sinkron" class="v"><div class="pad"><div class="box" id="sy"></div><button class="pri full" id="b-sync"></button></div></section>
+
+<div id="sheet" class="sheet"><div class="sh-in"><div class="row"><h2>Simpan Hasil Pengukuran</h2><button id="s-x" class="x"></button></div>
+ <div class="box sm"><div class="mono" id="s-sum"></div></div>
+ <label>Kelompok Tani (Poktan) *<input id="f-kt" list="dl-kt" autocomplete="off"></label><datalist id="dl-kt"></datalist>
+ <label>Nama Petani Penggarap *<input id="f-np"></label>
+ <label>Nama / Blok Lahan<input id="f-nl"></label>
+ <label>Catatan / Komoditas<textarea id="f-ct" rows="2"></textarea></label>
+ <button class="pri full" id="s-ok">Simpan ke Google Sheets</button></div></div>
+
+<div id="toast"></div>
+<nav><button data-v="peta" class="on"></button><button data-v="persil"></button><button id="n-lyr"></button><button data-v="sinkron"></button></nav>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="./js/config.js"></script><script src="./js/app.js"></script></body></html>
