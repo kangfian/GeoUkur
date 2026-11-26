@@ -46,4 +46,9 @@ nav button{flex:1;border:0;border-radius:0;flex-direction:column;gap:2px;font-si
 .inst{display:none;position:fixed;z-index:1300;left:8px;right:8px;top:calc(var(--hh) + var(--sat) + 4px);background:#fff;border:3px solid #090D16;border-radius:4px;padding:8px;align-items:center;gap:8px}.inst.on{display:flex}.inst span{flex:1;font-size:13px}.inst .pri{min-height:44px}.inst .x{width:44px;min-height:44px}
 body.hi .v{top:calc(var(--hh) + var(--sat) + var(--ih,80px))}
 .leaflet-top.leaflet-left{top:62px}
-#d-url summary{cursor:pointer;font:700 14px 'Space Grotesk';min-height:32px;display:flex;align-items:center}
+
+.dock{flex-direction:column}.dock #b-new{width:100%}.dk2{display:flex;flex-direction:column;gap:8px;width:100%}.dk2[hidden]{display:none}.dk2 .r{display:flex;gap:8px}.dk2 .r .pri{flex:1.6}.dk2 .r .sec{flex:1}
+#ret{display:none}body.drawing #ret{display:block}body.drawing .card{bottom:124px}
+details.pt>summary{list-style:none;padding:10px 12px;display:flex;justify-content:space-between;gap:8px;cursor:pointer;background:#fff;border-top:2px solid var(--ink)}
+details.pt>.a{display:flex;gap:8px;padding:0 12px 10px}details.pt>.a button{width:auto;flex:1;padding:0 8px}details.pt .it{background:var(--sf);padding-left:20px}
+.tag2{font:700 11px 'Space Grotesk';background:#0F172A;color:#fff;padding:1px 6px;border-radius:3px}

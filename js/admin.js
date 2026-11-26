@@ -27,7 +27,7 @@ const parse = r => { try { return JSON.parse(r.koordinat_json); } catch (e) { re
 function render() {
   const q = $('#q').value.toLowerCase(), f = rows.filter(r => !q || (r.nama_petani + ' ' + r.nama_lahan + ' ' + r.kelompok_tani).toLowerCase().includes(q));
   $('#sum').textContent = `${f.length} dari ${rows.length} lahan`;
-  $('#list').innerHTML = f.map(r => `<div class="item" data-id="${esc(r.id)}"><b>${esc(r.nama_petani)}</b> <span class="mono">${nf(r.luas_m2)} m² • ${nf(r.luas_ha, 4)} Ha</span><br>${esc(r.kelompok_tani)} • ${esc(r.nama_lahan)}<div class="a"><button class="sec" data-a="e">Edit</button><button class="red" data-a="d">Hapus</button></div></div>`).join('') || '<div class="box" style="margin-top:12px">Belum ada data.</div>';
+  $('#list').innerHTML = f.map(r => `<div class="item" data-id="${esc(r.id)}"><b>${esc(r.nama_petani)}</b> <span class="mono">${nf(r.luas_m2)} m² • ${nf(r.luas_ha, 4)} Ha • ${nf(r.luas_m2 / 400)} rante</span><br>${esc(r.kelompok_tani)} • ${esc(r.nama_lahan)}<div class="a"><button class="sec" data-a="e">Edit</button><button class="red" data-a="d">Hapus</button></div></div>`).join('') || '<div class="box" style="margin-top:12px">Belum ada data.</div>';
 }
 $('#list').onclick = async e => {
   const b = e.target.closest('button[data-a]'); if (!b) return; const id = b.closest('.item').dataset.id, r = rows.find(x => x.id === id); if (!r) return;
@@ -59,7 +59,7 @@ function drawE() {
   p.forEach((q, i) => { const n = p[(i + 1) % p.length], m = [(q[0] + n[0]) / 2, (q[1] + n[1]) / 2]; L.circleMarker(m, { radius: 7, weight: 2, color: '#0F172A', fillColor: '#fff', fillOpacity: .9, bubblingMouseEvents: false }).addTo(eg).on('click', () => { p.splice(i + 1, 0, m); sel = i + 1; drawE(); }); });
   sum();
 }
-const sum = () => $('#e-sum').textContent = `${nf(area(epts))} m² • ${nf(area(epts) / 1e4, 4)} Ha • ${nf(perim(epts))} m • ${epts.length} titik` + (sel >= 0 ? ` • titik ${sel + 1} dipilih` : '');
+const sum = () => $('#e-sum').textContent = `${nf(area(epts))} m² • ${nf(area(epts) / 1e4, 4)} Ha • ${nf(area(epts) / 400)} rante • ${epts.length} titik` + (sel >= 0 ? ` • titik ${sel + 1} dipilih` : '');
 $('#e-dp').onclick = () => { if (sel < 0) return toast('Ketuk titik yang ingin dihapus dulu'); if (epts.length <= 3) return toast('Poligon minimal 3 titik'); epts.splice(sel, 1); sel = -1; drawE(); };
 $('#e-rs').onclick = () => { epts = orig.map(q => q.slice()); sel = -1; drawE(); map.fitBounds(L.latLngBounds(epts), { padding: [30, 30], maxZoom: 19 }); };
 $('#e-x').innerHTML = X; $('#e-x').onclick = () => $('#sheet').className = 'sheet';
@@ -80,7 +80,7 @@ $('#in').onclick = async () => {
   catch (e) { $('#lerr').textContent = e.message; }
   $('#in').disabled = false;
 };
-$('#p').onkeydown = e => e.key === 'Enter' && $('#in').click();
+$('#p').addEventListener('keydown', e => { if (e.key === 'Enter') $('#in').click(); });
 $('#out').onclick = () => keluar();
 $('#gok').onclick = async () => {
   try { const j = await call({ action: 'admin.ganti', token: tok, lama: $('#g1').value, baru: $('#g2').value }); tok = j.token; sessionStorage.setItem('gu_adm', tok); $('#g1').value = $('#g2').value = ''; $('#wg').hidden = true; toast('Kata sandi diganti'); }
