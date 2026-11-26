@@ -34,7 +34,7 @@ function tumpang(A, B) {
 
 // ---------- State & cache ----------
 const cache = ls('gu_rows') || {};
-const S = { rows: cache.rows || [], ver: cache.ver || '', q: ls('gu_q') || [], pts: [], layer: ls('gu_layer') || 'sat', gps: null, last: cache.t || 0, fq: '', fg: '', view: 'peta', net: null, err: '', rej: ls('gu_rej') || [], draw: false, op: new Set(), cl: new Set() };
+const S = { rows: cache.rows || [], ver: cache.ver || '', q: ls('gu_q') || [], pts: [], layer: ls('gu_layer') || 'sat', gps: null, last: cache.t || 0, fq: '', fg: '', view: 'peta', net: null, err: '', rej: ls('gu_rej') || [], draw: false, op: new Set(), cl: new Set(), pl: [] };
 const gasUrl = () => C.GAS_URL || '';
 const okCfg = () => /^https:\/\/script\.google(usercontent)?\.com\//.test(gasUrl()) && !/GANTI|XXXX/.test(gasUrl());
 const saveRows = () => ls('gu_rows', { rows: S.rows, ver: S.ver, t: S.last });
@@ -88,7 +88,7 @@ let map, base, poly, grp, sg, hl, tmp, sig = '';
 function initMap() {
   map = L.map('map', { zoomControl: true, attributionControl: false, tap: true }).setView([3.595, 98.672], 15);
   base = T[S.layer]().addTo(map); sg = L.layerGroup().addTo(map); hl = L.layerGroup().addTo(map); tmp = L.layerGroup().addTo(map); grp = L.layerGroup().addTo(map);
-  map.on('click', e => { clearHl(); tmp.clearLayers(); $('#sr').className = 'sr'; if (!S.draw) return; S.pts.push([e.latlng.lat, e.latlng.lng]); draw(); });
+  map.on('click', e => { tmp.clearLayers(); $('#sr').className = 'sr'; if (!S.draw) { const h = polyAt(e.latlng.lat, e.latlng.lng); if (h) show(h, false); else clearHl(); return; } clearHl(); S.pts.push([e.latlng.lat, e.latlng.lng]); draw(); });
   map.on('zoomend', () => $('#map').classList.toggle('nolbl', map.getZoom() < 16)); $('#map').classList.toggle('nolbl', map.getZoom() < 16);
 }
 function setLayer() { S.layer = S.layer === 'sat' ? 'osm' : 'sat'; ls('gu_layer', S.layer); map.removeLayer(base); base = T[S.layer]().addTo(map); base.bringToBack(); }
@@ -110,24 +110,31 @@ function draw() { // poligon yang sedang diukur (kuning)
 const parse = r => { try { return JSON.parse(r.koordinat_json); } catch (e) { return null; } };
 function renderSaved() { // semua lahan tersimpan, warna per kelompok — tampil kembali setiap buka/sinkron
   if (!map) return; const rs = all(), s = rs.map(r => r.id + (r.pending ? 'p' : '')).join();
-  if (s === sig) return; sig = s; sg.clearLayers();
+  if (s === sig) return; sig = s; sg.clearLayers(); S.pl = [];
   rs.forEach(r => { const p = parse(r); if (!p || p.length < 3) return; const c = colOf(r.kelompok_tani);
+    S.pl.push({ r, p, b: [Math.min(...p.map(q => q[0])), Math.max(...p.map(q => q[0])), Math.min(...p.map(q => q[1])), Math.max(...p.map(q => q[1]))] });
     L.polygon(p, { color: c, weight: 3, fillColor: c, fillOpacity: .32, interactive: false }).addTo(sg);
     const m = [p.reduce((a, q) => a + q[0], 0) / p.length, p.reduce((a, q) => a + q[1], 0) / p.length];
     L.marker(m, { icon: L.divIcon({ className: 'plab', iconSize: [0, 0], html: `<span style="border-color:${c}">${esc(r.nama_petani)} <small>${nf(r.luas_ha, 2)} Ha</small></span>` }) }).addTo(sg)
-      .on('click', ev => { L.DomEvent.stopPropagation(ev); show(r); }); });
+      .on('click', ev => { L.DomEvent.stopPropagation(ev); show(r, false); }); });
+}
+function polyAt(la, lo) { // lahan tersimpan yang berisi titik yang diketuk
+  const inP = p => { let c = false; for (let i = 0, j = p.length - 1; i < p.length; j = i++) if ((p[i][0] > la) !== (p[j][0] > la) && lo < (p[j][1] - p[i][1]) * (la - p[i][0]) / (p[j][0] - p[i][0]) + p[i][1]) c = !c; return c; };
+  const h = S.pl.find(x => la >= x.b[0] && la <= x.b[1] && lo >= x.b[2] && lo <= x.b[3] && inP(x.p)); return h && h.r;
 }
 function fitAll() { const pts = [].concat(...all().map(parse).filter(Boolean)); if (!pts.length) return toast('Belum ada lahan tersimpan'); map.fitBounds(L.latLngBounds(pts), { padding: [30, 30], maxZoom: 18 }); }
 function clearHl() { hl.clearLayers(); $('#card').className = 'card'; if (location.search) history.replaceState(null, '', location.pathname); }
-function show(row) { // lihat lahan tersimpan; pengukuran baru tetap bisa dilakukan
+function show(row, fit = true) { // lihat lahan tersimpan; pengukuran baru tetap bisa dilakukan
   const p = parse(row); if (!p) return; hl.clearLayers();
   const pl = L.polygon(p, { color: '#090D16', weight: 5, dashArray: '8 6', fill: false, interactive: false }).addTo(hl);
-  map.fitBounds(pl.getBounds(), { padding: [40, 40], maxZoom: 19 });
-  const c = $('#card'); c.className = 'card on';
+  if (fit) map.fitBounds(pl.getBounds(), { padding: [40, 40], maxZoom: 19 });
+  const sm = all().filter(x => petKey(x) === petKey(row)), c = $('#card'); c.className = 'card on';
   c.innerHTML = `<div class="row"><h3><i class="cd" style="background:${colOf(row.kelompok_tani)}"></i>${esc(row.nama_petani)}</h3><button id="c-x" class="x">${ic('x')}</button></div><div>${esc(row.kelompok_tani)} • ${esc(row.nama_lahan)}</div>
-  <div class="grid"><div><small>LUAS</small><b class="mono">${nf(row.luas_m2)} m²</b></div><div><small>HEKTAR</small><b class="mono">${nf(row.luas_ha, 4)} Ha</b></div><div><small>RANTE</small><b class="mono">${nf(row.luas_m2 / 400)}</b></div><div><small>TITIK</small><b class="mono">${row.jumlah_titik}</b></div></div>
+  <div class="grid"><div><small>LUAS</small><b class="mono">${nf(row.luas_m2)} m²</b></div><div><small>HEKTAR (Ha)</small><b class="mono">${nf(row.luas_ha, 4)}</b></div><div><small>RANTE</small><b class="mono">${nf(row.luas_m2 / 400)}</b></div><div><small>TITIK</small><b class="mono">${row.jumlah_titik}</b></div></div>
   ${row.catatan ? `<div class="box">${esc(row.catatan)}</div>` : ''}
+  ${sm.length > 1 ? `<div class="box note">Petani ini memiliki <b>${sm.length} lahan</b> • total <b>${nf(m2s(sm) / 1e4, 4)} Ha</b> (${nf(m2s(sm) / 400)} rante)<button class="sec full" id="c-all" style="margin-top:8px;min-height:44px">Lihat semua lahan petani</button></div>` : ''}
   <div class="acts"><button class="wa" id="c-wa">${ic('share')} WhatsApp</button><button id="c-cp">${ic('link')} Salin</button><button id="c-gj">${ic('down')} GeoJSON</button></div>`;
+  if (sm.length > 1) $('#c-all').onclick = () => showPetani(sm);
   $('#c-x').onclick = clearHl; $('#c-wa').onclick = () => share(row, 'wa'); $('#c-cp').onclick = () => share(row, 'copy'); $('#c-gj').onclick = () => geojson(row);
 }
 const link = r => location.origin + location.pathname + '?id=' + r.id;
@@ -196,7 +203,7 @@ function renderList() {
       <div class="a" data-k="${esc(pk)}"><button data-a="pf" aria-label="Lihat semua lahan petani">${ic('target')} Semua</button><button data-a="ps" aria-label="Bagikan rekap petani">${ic('share')} Rekap</button></div>` +
       L2.map(r => `<div class="it"><div class="t"><div>${esc(r.nama_lahan) || '(tanpa nama)'} ${r.pending ? '<span class="tag">MENUNGGU</span>' : ''}</div><div class="mono" style="text-align:right"><b>${tot(r.luas_m2)}</b><br>${totSub(r.luas_m2)}</div></div>
       <div class="a" data-id="${esc(r.id)}"><button data-a="f" aria-label="Fokus peta">${ic('target')}</button><button data-a="s" aria-label="Bagikan">${ic('share')}</button>${r.pending ? `<button class="red" data-a="d" aria-label="Hapus">${ic('trash')}</button>` : ''}</div></div>`).join('') + '</details>'; }).join('') + '</details>';
-  }).join('') || '<div class="box" style="margin-top:12px">Belum ada data lahan.</div>';
+  }).join('') || '<div class="empty"><svg viewBox="0 0 24 24"><path d="M4.5 8.5L10 4l9.5 4.5-1.5 10L7 20z"/></svg><b>Belum ada lahan</b><span>Buka tab PETA, tekan "Buat Polygon Baru", lalu tandai batas lahan.</span></div>';
 }
 $('#grp').addEventListener('toggle', e => { const d = e.target, k = d.dataset && d.dataset.k; if (!k) return; if (k.startsWith('k:')) d.open ? S.cl.delete(k) : S.cl.add(k); else d.open ? S.op.add(k) : S.op.delete(k); }, true);
 $('#grp').onclick = e => {
@@ -211,7 +218,7 @@ function showPetani(L2) { // semua lahan satu petani sebagai satu kesatuan
   if (pts.length) map.fitBounds(L.latLngBounds(pts), { padding: [40, 40], maxZoom: 19 });
   const m = m2s(L2), c = $('#card'); c.className = 'card on';
   c.innerHTML = `<div class="row"><h3><i class="cd" style="background:${colOf(L2[0].kelompok_tani)}"></i>${esc(String(L2[0].nama_petani).trim())}</h3><button id="c-x" class="x">${ic('x')}</button></div><div>${esc(L2[0].kelompok_tani)} • ${L2.length} lahan</div>
-  <div class="grid"><div><small>TOTAL LUAS</small><b class="mono">${tot(m)}</b></div><div><small>TOTAL HEKTAR</small><b class="mono">${nf(m / 1e4, 4)} Ha</b></div><div><small>TOTAL RANTE</small><b class="mono">${nf(m / 400)}</b></div><div><small>JUMLAH LAHAN</small><b class="mono">${L2.length}</b></div></div>
+  <div class="grid"><div><small>TOTAL LUAS</small><b class="mono">${tot(m)}</b></div><div><small>TOTAL (Ha)</small><b class="mono">${nf(m / 1e4, 4)}</b></div><div><small>TOTAL RANTE</small><b class="mono">${nf(m / 400)}</b></div><div><small>JUMLAH LAHAN</small><b class="mono">${L2.length}</b></div></div>
   <div class="box">${L2.map(r => `${esc(r.nama_lahan) || '(tanpa nama)'} — ${nf(r.luas_ha, 4)} Ha`).join('<br>')}</div>
   <div class="acts"><button class="wa" id="c-wa">${ic('share')} Bagikan rekap</button></div>`;
   $('#c-x').onclick = clearHl; $('#c-wa').onclick = () => sharePetani(L2);
@@ -231,14 +238,15 @@ function openSheet() {
   if (S.pts.length < 3) return toast('Tandai minimal 3 titik batas lahan');
   const t = all().find(r => { const q = parse(r); return q && q.length > 2 && tumpang(S.pts, q); });
   if (t) { show(t); return toast(`Tumpang tindih dengan lahan "${t.nama_lahan}" milik ${t.nama_petani}. Geser titik agar tidak menimpa lahan yang sudah terpolygon.`); }
-  const a = area(S.pts); $('#s-sum').innerHTML = `${nf(a)} m² • ${nf(a / 1e4, 4)} Ha • ${nf(a / 400)} rante • ${S.pts.length} titik`; $('#sheet').className = 'sheet on'; fillNp(); $('#f-kt').focus();
+  const a = area(S.pts); $('#s-sum').innerHTML = `<div><small>LUAS</small><b class="mono">${nf(a)} m²</b></div><div><small>HEKTAR</small><b class="mono">${nf(a / 1e4, 4)}</b></div><div><small>RANTE</small><b class="mono">${nf(a / 400)}</b></div>`; document.body.classList.add('sh'); $('#sheet').className = 'sheet on'; fillNp(); $('#f-kt').focus();
 }
-$('#s-x').onclick = () => $('#sheet').className = 'sheet';
+const closeSheet = () => { $('#sheet').className = 'sheet'; document.body.classList.remove('sh'); };
+$('#s-x').onclick = closeSheet;
 $('#s-ok').onclick = () => {
   const v = id => $(id).value.trim(), kt = v('#f-kt'), np = v('#f-np');
   if (!kt || !np) return toast('Kelompok tani & nama petani wajib diisi');
   const a = area(S.pts), p = { id: 'LHN-' + Date.now(), kelompok_tani: kt, nama_petani: np, nama_lahan: v('#f-nl'), luas_m2: +a.toFixed(2), luas_ha: +(a / 1e4).toFixed(4), keliling_m: +perim(S.pts).toFixed(2), jumlah_titik: S.pts.length, koordinat_json: JSON.stringify(S.pts.map(q => [+q[0].toFixed(7), +q[1].toFixed(7)])), catatan: v('#f-ct') };
-  S.q.push(p); saveQ(); setDraw(false); ['#f-np', '#f-nl', '#f-ct'].forEach(i => $(i).value = ''); $('#sheet').className = 'sheet';
+  S.q.push(p); saveQ(); setDraw(false); ['#f-np', '#f-nl', '#f-ct'].forEach(i => $(i).value = ''); closeSheet();
   toast(okCfg() ? 'Tersimpan di perangkat — menyinkronkan…' : 'Tersimpan di perangkat. Isi GAS_URL di js/config.js agar masuk ke Google Sheets'); renderAll(); flush();
 };
 
@@ -247,7 +255,8 @@ function renderStatus() {
   const n = S.q.length ? ` • ${S.q.length} antre` : '', ok = okCfg();
   $('#dot').className = !ok ? 'off' : S.net ? 'on' : S.net === false ? 'off' : '';
   $('#stat').textContent = !ok ? 'URL server belum diatur' : S.net ? 'Terhubung' + n : S.net === false ? 'Tidak terhubung' + n : 'Menghubungkan…';
-  $('#sy').innerHTML = `<div class="mono">Server: ${!ok ? 'BELUM DIATUR' : S.net ? 'TERHUBUNG' : S.net === false ? 'TIDAK TERHUBUNG' : 'menghubungkan…'}</div><div class="mono">Data di perangkat: ${all().length} bidang</div><div class="mono">Antrean kirim: ${S.q.length}</div><div class="mono">Sinkron terakhir: ${S.last ? new Date(S.last).toLocaleString('id-ID') : '—'}</div>`;
+  const pl = (t, c) => `<span class="pill ${c}">${t}</span>`;
+  $('#sy').innerHTML = `<div class="kv"><span>Server</span>${!ok ? pl('BELUM DIATUR', 'bad') : S.net ? pl('TERHUBUNG', 'ok') : S.net === false ? pl('TIDAK TERHUBUNG', 'bad') : pl('MENGHUBUNGKAN', '')}</div><div class="kv"><span>Data di perangkat</span><b>${all().length} lahan</b></div><div class="kv"><span>Antrean kirim</span><b>${S.q.length}</b></div><div class="kv"><span>Sinkron terakhir</span><b>${S.last ? new Date(S.last).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }) : '—'}</b></div>`;
   $('#sy-log').textContent = S.rej.length ? '⛔ Ditolak server: ' + S.rej.map(r => r.nama + ' — ' + r.alasan).join(' | ') : S.err ? '⚠ ' + S.err : ok ? 'Tidak ada kesalahan.' : 'URL server belum diisi. Isi GAS_URL di berkas js/config.js lalu unggah ulang ke GitHub.';
 }
 function renderAll() { renderStatus(); renderList(); renderSaved(); }

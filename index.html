@@ -3,10 +3,10 @@
 <meta name="theme-color" content="#047857"><link rel="manifest" href="./manifest.json"><link rel="apple-touch-icon" href="./icon-192.png">
 <title>GeoUkur by Irpan</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@600;700&family=JetBrains+Mono:wght@700&family=Space+Grotesk:wght@600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap">
 <link rel="stylesheet" href="./css/style.css"></head>
 <body>
-<header><div><b class="br">GeoUkur</b> <span class="chip">V2.5 PWA</span><div class="st mono"><i id="dot"></i><span id="stat">Memuat…</span></div></div>
+<header><div class="brand"><span class="logo"><svg viewBox="0 0 24 24"><path d="M4.5 8.5L10 4l9.5 4.5-1.5 10L7 20z"/><circle cx="10" cy="4" r="1.6"/><circle cx="19.5" cy="8.5" r="1.6"/><circle cx="18" cy="18.5" r="1.6"/><circle cx="7" cy="20" r="1.6"/></svg></span><div><div><b class="br">GeoUkur</b><span class="by">by Irpan</span><span class="chip">V2.6</span></div><div class="st"><i id="dot"></i><span id="stat">Memuat…</span></div></div></div>
 <div class="mono bx" id="gpsb">GPS —</div></header>
 <div id="inst" class="inst"><span id="inst-t"></span><button id="inst-ok" class="pri">Pasang</button><button id="inst-x" class="x" aria-label="Tutup"></button></div>
 
@@ -21,11 +21,11 @@
 
 <section id="v-persil" class="v"><div class="pad"><input id="q" placeholder="Cari nama petani atau blok…"><select id="fg"></select><div id="sum" class="mono sum"></div><div id="grp"></div></div></section>
 
-<section id="v-sinkron" class="v"><div class="pad"><div class="box" id="sy"></div>
+<section id="v-sinkron" class="v"><div class="pad"><h2 class="ttl">Sinkronisasi</h2><div class="box" id="sy"></div>
  <button class="pri full" id="b-sync"></button><div class="box sm mono" id="sy-log" style="margin-top:12px"></div></div></section>
 
 <div id="sheet" class="sheet"><div class="sh-in"><div class="row"><h2>Simpan Hasil Pengukuran</h2><button id="s-x" class="x"></button></div>
- <div class="box sm"><div class="mono" id="s-sum"></div></div>
+ <div class="grid g3 sm" id="s-sum"></div>
  <label>Kelompok Tani (Poktan) *<input id="f-kt" list="dl-kt" autocomplete="off"></label><datalist id="dl-kt"></datalist>
  <label>Nama Petani Penggarap *<input id="f-np" list="dl-np" autocomplete="off"></label><datalist id="dl-np"></datalist>
  <label>Nama / Blok Lahan<input id="f-nl"></label>
