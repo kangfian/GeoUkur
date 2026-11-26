@@ -1,2 +1,2 @@
 // Satu-satunya nilai di frontend: URL /exec Web App (bukan rahasia).
-window.APP_CONFIG = { GAS_URL: 'https://script.google.com/macros/s/AKfycbwGeVNTK_vUAI_Tas10QQdoyMvIR4McMHRfZ_jS6rYK_NY2fkU6QRQJrlcosGyUpVCB/exec' };
+window.APP_CONFIG = { GAS_URL: 'https://script.google.com/macros/s/AKfycbz33qXkv5ti0dhFGSNbke8VEA-RxhPQnDsxD82s8QWXmybE0SnutzNgf3L3cHEsbRTD/exec' };
