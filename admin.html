@@ -1,0 +1,36 @@
+<!DOCTYPE html><html lang="id"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow">
+<title>Admin Darurat — GeoUkur</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@600;700&family=JetBrains+Mono:wght@700&family=Space+Grotesk:wght@600;700&display=swap">
+<link rel="stylesheet" href="./css/style.css">
+<style>body{height:auto;min-height:100%}.ah{display:flex;gap:8px;align-items:center;padding:12px 16px;background:#fff;border-bottom:2px solid #0F172A;position:sticky;top:0;z-index:20}.ah .sec{margin-left:auto;min-height:40px}
+.warn{background:#FEF3C7;border:2px solid #92400E;border-radius:4px;padding:10px;margin-bottom:12px}.err{color:#B91C1C;font-weight:700;margin-top:8px}
+#emap{height:46vh;min-height:260px;border:2px solid #0F172A;border-radius:4px;margin-top:10px}.vx.sel::after{border-color:#EF4444}.item{border:2px solid #0F172A;border-radius:4px;background:#fff;padding:10px;margin-top:10px}.item .a{display:flex;gap:8px;margin-top:8px}.item .a button{flex:1}
+.sheet{max-height:94dvh}</style></head>
+<body>
+<div class="ah"><b class="br">GeoUkur</b><span class="chip">ADMIN DARURAT</span><button id="out" class="sec" hidden>Keluar</button></div>
+
+<div class="pad" id="login"><div class="box"><h3 style="margin:0 0 4px;font:700 20px 'Space Grotesk'">Masuk Admin</h3>
+ <label>Nama pengguna<input id="u" autocomplete="username" autocapitalize="off"></label>
+ <label>Kata sandi<input id="p" type="password" autocomplete="current-password"></label>
+ <button class="pri full" id="in">Masuk</button><div class="err" id="lerr"></div></div></div>
+
+<div class="pad" id="panel" hidden>
+ <div class="warn" id="wg" hidden><b>Segera ganti kata sandi awal.</b> Buka "Ganti kata sandi" di bawah.</div>
+ <input id="q" placeholder="Cari petani, blok, atau kelompok…"><div class="sum mono" id="sum"></div><div id="list"></div>
+ <details class="box" style="margin-top:16px"><summary><b>Ganti kata sandi</b></summary>
+  <label>Kata sandi lama<input id="g1" type="password" autocomplete="current-password"></label>
+  <label>Kata sandi baru (min. 12 karakter, huruf + angka)<input id="g2" type="password" autocomplete="new-password"></label>
+  <button class="sec full" id="gok">Ganti kata sandi</button></details>
+</div>
+
+<div id="sheet" class="sheet"><div class="sh-in"><div class="row"><h2>Edit Lahan</h2><button id="e-x" class="x" aria-label="Tutup"></button></div>
+ <div class="box sm"><div class="mono" id="e-sum"></div></div>
+ <label>Kelompok Tani *<input id="e-kt"></label><label>Nama Petani *<input id="e-np"></label><label>Nama / Blok Lahan<input id="e-nl"></label><label>Catatan<textarea id="e-ct" rows="2"></textarea></label>
+ <label style="margin-top:14px">Bentuk poligon — geser titik, ketuk titik tengah untuk menambah sudut</label><div id="emap"></div>
+ <div class="acts"><button id="e-dp" class="sec">Hapus titik terpilih</button><button id="e-rs" class="sec">Kembalikan bentuk</button></div>
+ <div class="err" id="e-err"></div>
+ <button class="pri full" id="e-ok">Simpan perubahan</button></div></div>
+<div id="toast"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script src="./js/config.js"></script><script src="./js/admin.js"></script></body></html>

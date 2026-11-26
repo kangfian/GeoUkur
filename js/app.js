@@ -12,10 +12,30 @@ const area = p => { const n = p.length; if (n < 3) return 0; let a = 0; for (let
 const dist = (a, b) => { const h = Math.sin(rad(b[0] - a[0]) / 2) ** 2 + Math.cos(rad(a[0])) * Math.cos(rad(b[0])) * Math.sin(rad(b[1] - a[1]) / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)); };
 const perim = p => p.length < 2 ? 0 : p.reduce((s, q, i) => s + (i || p.length > 2 ? dist(p[(i + p.length - 1) % p.length], q) : 0), 0);
 
+
+// Tumpang tindih (sama dengan server): bersinggungan boleh, saling menimpa tidak.
+function tumpang(A, B) {
+  const la = A[0][0], lo = A[0][1], kx = Math.cos(rad(la)) * 111320, ky = 110540, E = 0.1;
+  const f = p => [(p[1] - lo) * kx, (p[0] - la) * ky], a = A.map(f), b = B.map(f);
+  const bb = q => { const x = q.map(v => v[0]), y = q.map(v => v[1]); return [Math.min(...x), Math.max(...x), Math.min(...y), Math.max(...y)]; };
+  const u = bb(a), w = bb(b); if (u[1] < w[0] || w[1] < u[0] || u[3] < w[2] || w[3] < u[2]) return false;
+  const sd = (p, q, r) => ((q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])) / (Math.hypot(q[0] - p[0], q[1] - p[1]) || 1e-9);
+  const segD = (p, q, r) => { const dx = q[0] - p[0], dy = q[1] - p[1], l2 = dx * dx + dy * dy || 1e-9; let t = ((r[0] - p[0]) * dx + (r[1] - p[1]) * dy) / l2; t = Math.max(0, Math.min(1, t)); return Math.hypot(r[0] - p[0] - t * dx, r[1] - p[1] - t * dy); };
+  const inside = (r, q) => { for (let i = 0; i < q.length; i++) if (segD(q[i], q[(i + 1) % q.length], r) < E) return false; let c = false; for (let i = 0, j = q.length - 1; i < q.length; j = i++) if ((q[i][1] > r[1]) !== (q[j][1] > r[1]) && r[0] < (q[j][0] - q[i][0]) * (r[1] - q[i][1]) / (q[j][1] - q[i][1]) + q[i][0]) c = !c; return c; };
+  for (let i = 0; i < a.length; i++) for (let j = 0; j < b.length; j++) {
+    const p1 = a[i], p2 = a[(i + 1) % a.length], p3 = b[j], p4 = b[(j + 1) % b.length], d1 = sd(p3, p4, p1), d2 = sd(p3, p4, p2), d3 = sd(p1, p2, p3), d4 = sd(p1, p2, p4);
+    if (((d1 > E && d2 < -E) || (d1 < -E && d2 > E)) && ((d3 > E && d4 < -E) || (d3 < -E && d4 > E))) return true;
+  }
+  if (a.some(v => inside(v, b)) || b.some(v => inside(v, a))) return true;
+  const cen = q => [q.reduce((s, v) => s + v[0], 0) / q.length, q.reduce((s, v) => s + v[1], 0) / q.length];
+  const samp = q => { const c = cen(q), o = [c]; q.forEach(v => [.1, .3, .5].forEach(t => o.push([v[0] + (c[0] - v[0]) * t, v[1] + (c[1] - v[1]) * t]))); return o; };
+  return samp(a).concat(samp(b)).some(s => inside(s, a) && inside(s, b));
+}
+
 // ---------- State & cache ----------
 const cache = ls('gu_rows') || {};
-const S = { rows: cache.rows || [], ver: cache.ver || '', q: ls('gu_q') || [], pts: [], layer: ls('gu_layer') || 'sat', gps: null, last: cache.t || 0, fq: '', fg: '', view: 'peta', net: null, err: '' };
-const gasUrl = () => ls('gu_url') || C.GAS_URL || '';
+const S = { rows: cache.rows || [], ver: cache.ver || '', q: ls('gu_q') || [], pts: [], layer: ls('gu_layer') || 'sat', gps: null, last: cache.t || 0, fq: '', fg: '', view: 'peta', net: null, err: '', rej: ls('gu_rej') || [] };
+const gasUrl = () => C.GAS_URL || '';
 const okCfg = () => /^https:\/\/script\.google(usercontent)?\.com\//.test(gasUrl()) && !/GANTI|XXXX/.test(gasUrl());
 const saveRows = () => ls('gu_rows', { rows: S.rows, ver: S.ver, t: S.last });
 const saveQ = () => ls('gu_q', S.q);
@@ -49,7 +69,7 @@ async function flush() {
   try {
     while (S.q.length) {
       const r = await post({ action: 'create', payload: S.q[0] });
-      if (r.status !== 'success') { if (/wajib|minimal/.test(r.message || '')) { toast('Data ditolak server: ' + r.message); S.q.shift(); saveQ(); continue; } throw new Error(r.message || 'Server menolak'); }
+      if (r.status !== 'success') { if (/wajib|minimal|tumpang tindih|tidak valid/.test(r.message || '')) { S.rej.push({ nama: S.q[0].nama_petani, alasan: r.message }); ls('gu_rej', S.rej); toast('Ditolak server: ' + r.message); S.q.shift(); saveQ(); continue; } throw new Error(r.message || 'Server menolak'); }
       S.q.shift(); saveQ(); S.net = true; S.err = '';
     }
     await refresh(true);
@@ -160,24 +180,22 @@ function renderList() {
   const g = {}; f.forEach(r => (g[r.kelompok_tani] = g[r.kelompok_tani] || []).push(r));
   $('#grp').innerHTML = Object.keys(g).sort().map(k => `<details class="g-h" open><summary><b><i class="cd" style="background:${colOf(k)}"></i>${esc(k)}</b><span class="mono">${g[k].length} Bidang • ${nf(g[k].reduce((s, r) => s + +r.luas_ha, 0), 4)} Ha</span></summary>` +
     g[k].map(r => `<div class="it"><div class="t"><div><b>${esc(r.nama_petani)}</b> ${r.pending ? '<span class="tag">MENUNGGU</span>' : ''}<br>${esc(r.nama_lahan)}</div><div class="mono" style="text-align:right"><b>${nf(r.luas_m2)} m²</b><br>${nf(r.luas_ha, 4)} Ha</div></div>
-    <div class="a" data-id="${esc(r.id)}"><button data-a="f" aria-label="Fokus peta">${ic('target')}</button><button data-a="s" aria-label="Bagikan">${ic('share')}</button><button class="red" data-a="d" aria-label="Hapus">${ic('trash')}</button></div></div>`).join('') + '</details>').join('') || '<div class="box" style="margin-top:12px">Belum ada data lahan.</div>';
+    <div class="a" data-id="${esc(r.id)}"><button data-a="f" aria-label="Fokus peta">${ic('target')}</button><button data-a="s" aria-label="Bagikan">${ic('share')}</button>${r.pending ? `<button class="red" data-a="d" aria-label="Hapus">${ic('trash')}</button>` : ''}</div></div>`).join('') + '</details>').join('') || '<div class="box" style="margin-top:12px">Belum ada data lahan.</div>';
 }
 $('#grp').onclick = e => {
   const b = e.target.closest('button[data-a]'); if (!b) return; const id = b.parentNode.dataset.id, r = all().find(x => x.id === id); if (!r) return;
   if (b.dataset.a === 'f') { go('peta'); setTimeout(() => show(r), 60); } else if (b.dataset.a === 's') share(r, navigator.share ? 'native' : 'wa'); else del(r);
 };
-async function del(r) {
-  if (!confirm(`Hapus lahan "${r.nama_lahan}" milik ${r.nama_petani}?`)) return;
-  const bakR = S.rows.slice(), bakQ = S.q.slice();
-  S.rows = S.rows.filter(x => x.id !== r.id); S.q = S.q.filter(x => x.id !== r.id); saveRows(); saveQ(); renderAll();
-  if (r.pending) return toast('Dihapus');
-  try { const x = await post({ action: 'delete', id: r.id }); if (x.status !== 'success') throw new Error(x.message); S.ver = x.ver; saveRows(); toast('Dihapus'); }
-  catch (e) { S.rows = bakR; S.q = bakQ; saveRows(); saveQ(); renderAll(); toast('Gagal menghapus: ' + e.message); }
+function del(r) { // hanya untuk data yang belum terkirim; data di server dihapus lewat halaman admin
+  if (!r.pending || !confirm(`Hapus lahan "${r.nama_lahan}" milik ${r.nama_petani} dari antrean?`)) return;
+  S.q = S.q.filter(x => x.id !== r.id); saveQ(); renderAll(); toast('Dihapus');
 }
 
 // ---------- Simpan ----------
 function openSheet() {
   if (S.pts.length < 3) return toast('Tandai minimal 3 titik batas lahan');
+  const t = all().find(r => { const q = parse(r); return q && q.length > 2 && tumpang(S.pts, q); });
+  if (t) { show(t); return toast(`Tumpang tindih dengan lahan "${t.nama_lahan}" milik ${t.nama_petani}. Geser titik agar tidak menimpa lahan yang sudah terpolygon.`); }
   const a = area(S.pts); $('#s-sum').innerHTML = `${nf(a)} m² • ${nf(a / 1e4, 4)} Ha • ${nf(perim(S.pts))} m • ${S.pts.length} titik`; $('#sheet').className = 'sheet on'; $('#f-kt').focus();
 }
 $('#s-x').onclick = () => $('#sheet').className = 'sheet';
@@ -186,17 +204,16 @@ $('#s-ok').onclick = () => {
   if (!kt || !np) return toast('Kelompok tani & nama petani wajib diisi');
   const a = area(S.pts), p = { id: 'LHN-' + Date.now(), kelompok_tani: kt, nama_petani: np, nama_lahan: v('#f-nl'), luas_m2: +a.toFixed(2), luas_ha: +(a / 1e4).toFixed(4), keliling_m: +perim(S.pts).toFixed(2), jumlah_titik: S.pts.length, koordinat_json: JSON.stringify(S.pts.map(q => [+q[0].toFixed(7), +q[1].toFixed(7)])), catatan: v('#f-ct') };
   S.q.push(p); saveQ(); S.pts = []; draw(); ['#f-np', '#f-nl', '#f-ct'].forEach(i => $(i).value = ''); $('#sheet').className = 'sheet';
-  toast(okCfg() ? 'Tersimpan di perangkat — menyinkronkan…' : 'Tersimpan di perangkat. Atur URL server di menu SINKRON agar masuk ke Google Sheets'); renderAll(); flush();
+  toast(okCfg() ? 'Tersimpan di perangkat — menyinkronkan…' : 'Tersimpan di perangkat. Isi GAS_URL di js/config.js agar masuk ke Google Sheets'); renderAll(); flush();
 };
 
 // ---------- Tampilan ----------
 function renderStatus() {
-  if (!okCfg()) $('#d-url').open = true;
   const n = S.q.length ? ` • ${S.q.length} antre` : '', ok = okCfg();
   $('#dot').className = !ok ? 'off' : S.net ? 'on' : S.net === false ? 'off' : '';
   $('#stat').textContent = !ok ? 'URL server belum diatur' : S.net ? 'Terhubung' + n : S.net === false ? 'Tidak terhubung' + n : 'Menghubungkan…';
   $('#sy').innerHTML = `<div class="mono">Server: ${!ok ? 'BELUM DIATUR' : S.net ? 'TERHUBUNG' : S.net === false ? 'TIDAK TERHUBUNG' : 'menghubungkan…'}</div><div class="mono">Data di perangkat: ${all().length} bidang</div><div class="mono">Antrean kirim: ${S.q.length}</div><div class="mono">Sinkron terakhir: ${S.last ? new Date(S.last).toLocaleString('id-ID') : '—'}</div>`;
-  $('#sy-log').textContent = S.err ? '⚠ ' + S.err : ok ? 'Tidak ada kesalahan.' : 'Tempel URL /exec dari Deploy Apps Script di kolom di atas, lalu tekan "Simpan URL & Uji Koneksi".';
+  $('#sy-log').textContent = S.rej.length ? '⛔ Ditolak server: ' + S.rej.map(r => r.nama + ' — ' + r.alasan).join(' | ') : S.err ? '⚠ ' + S.err : ok ? 'Tidak ada kesalahan.' : 'URL server belum diisi. Isi GAS_URL di berkas js/config.js lalu unggah ulang ke GitHub.';
 }
 function renderAll() { renderStatus(); renderList(); renderSaved(); }
 function go(v) {
@@ -240,11 +257,6 @@ function init() {
   $('#sb').onclick = search; $('#sq').onkeydown = e => e.key === 'Enter' && search();
   $('#q').oninput = e => { S.fq = e.target.value; renderList(); }; $('#fg').onchange = e => { S.fg = e.target.value; renderList(); };
   $('#b-sync').onclick = async () => { toast('Menyinkronkan…'); await flush(); const ok = await refresh(true); if (ok) { go('peta'); setTimeout(fitAll, 80); toast('Tersinkron: ' + all().length + ' lahan ditampilkan'); } else toast('Gagal: ' + S.err); };
-  $('#b-test').onclick = async () => {
-    const u = $('#f-url').value.trim(); if (u) ls('gu_url', u); $('#f-url').value = '';
-    if (!okCfg()) return toast('URL harus diawali https://script.google.com/ dan berakhiran /exec'); $('#d-url').open = false;
-    const t0 = Date.now(); try { const r = await get({ action: 'ping' }); if (r.status !== 'success') throw new Error(r.message || 'Respons tidak valid'); toast('Terhubung ✓ (' + (Date.now() - t0) + ' ms)'); await flush(); await refresh(true); } catch (e) { S.net = false; S.err = e.message; renderAll(); toast('Gagal terhubung'); }
-  };
   $('#inst-ok').onclick = async () => { if (!dp) return; dp.prompt(); await dp.userChoice; dp = null; hideInst(); };
   $('#inst-x').onclick = () => { sessionStorage.setItem('gu_ix', 1); hideInst(); };
   addEventListener('online', () => { flush(); refresh(); });
@@ -252,7 +264,7 @@ function init() {
   renderAll(); showInst();
   const id = new URLSearchParams(location.search).get('id');
   if (id) { const r = all().find(x => x.id === id); if (r) show(r); if (okCfg()) get({ action: 'getById', id }).then(x => x.status === 'success' && !r && show(x.data[0])).catch(() => !r && toast('Data tidak ditemukan')); }
-  else if (all().length) fitAll(); else if (!okCfg()) toast('Atur URL server di menu SINKRON agar data tersimpan ke Google Sheets');
+  else if (all().length) fitAll(); else if (!okCfg()) toast('URL server belum diisi di js/config.js — data hanya tersimpan di perangkat');
   else toast('Ketuk peta atau tekan + TITIK (bidik silang) untuk menambah titik');
   refresh().then(flush);
   setInterval(() => document.visibilityState === 'visible' && (flush(), refresh()), 60000);
