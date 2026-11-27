@@ -129,8 +129,9 @@ function draw() { // polygon yang sedang dibuat: garis hijau + jarak tiap sisi
   grp.clearLayers(); const p = S.pts, ring = () => p.length > 2 ? p.concat([p[0]]) : p;
   cas = L.polyline(ring(), { color: '#0F172A', weight: 8, opacity: .55, interactive: false }).addTo(grp);
   poly = (p.length > 2 ? L.polygon(p, { color: '#22C55E', weight: 4, fillColor: '#22C55E', fillOpacity: .2, interactive: false }) : L.polyline(p, { color: '#22C55E', weight: 4, interactive: false })).addTo(grp);
-  p.forEach((q, i) => L.marker(q, { draggable: true, icon: L.divIcon({ className: 'vx', iconSize: [36, 36] }) }).addTo(grp)
-    .on('drag', e => { const l = e.target.getLatLng(); p[i] = [l.lat, l.lng]; poly.setLatLngs(p); cas.setLatLngs(ring()); metrics(p); segLabels(); }).on('dragend', draw));
+  p.forEach((q, i) => { const m = L.marker(q, { draggable: true, icon: L.divIcon({ className: 'vx', iconSize: [36, 36] }) }).addTo(grp), el = m.getElement && m.getElement();
+    if (el) el.addEventListener('pointerdown', () => { el.classList.add('drag'); const off = () => { el.classList.remove('drag'); removeEventListener('pointerup', off); removeEventListener('pointercancel', off); }; addEventListener('pointerup', off); addEventListener('pointercancel', off); }); // pin merah penanda titik yang sedang dipegang
+    m.on('drag', e => { const l = e.target.getLatLng(); p[i] = [l.lat, l.lng]; poly.setLatLngs(p); cas.setLatLngs(ring()); metrics(p); segLabels(); }).on('dragend', draw); });
   if (p.length > 1) p.forEach((q, i) => { const n = p[(i + 1) % p.length]; if (p.length < 3 && i) return; L.circleMarker([(q[0] + n[0]) / 2, (q[1] + n[1]) / 2], { radius: 9, weight: 3, color: '#0F172A', fillColor: '#fff', fillOpacity: 1, bubblingMouseEvents: false })
     .addTo(grp).on('click', () => { p.splice(i + 1, 0, [(q[0] + n[0]) / 2, (q[1] + n[1]) / 2]); draw(); }); });
   metrics(p); segLabels();
@@ -165,9 +166,12 @@ function show(row, fit = true) { // lihat lahan tersimpan; pengukuran baru tetap
   if (sm.length > 1) $('#c-all').onclick = () => showPetani(sm);
   $('#c-x').onclick = clearHl; $('#c-wa').onclick = () => share(row, 'wa'); $('#c-fmt').onclick = () => openFmt([row], `${row.nama_lahan || '(tanpa nama)'} — ${String(row.nama_petani).trim()}`);
 }
+const ctrOf = r => { const p = parse(r); return p && p.length ? [p.reduce((s, q) => s + q[0], 0) / p.length, p.reduce((s, q) => s + q[1], 0) / p.length] : null; };
+const c6 = c => c ? c[0].toFixed(6) + ', ' + c[1].toFixed(6) : '-';
+const gm = c => c ? `https://maps.google.com/?q=${c[0].toFixed(6)},${c[1].toFixed(6)}` : '';
 const link = r => location.origin + location.pathname + '?id=' + r.id;
 function share(r, how) {
-  const t = `GeoUkur by Irpan - Data Pengukuran Lahan\nKelompok Tani : ${r.kelompok_tani}\nNama Petani   : ${r.nama_petani}\nBlok Lahan    : ${r.nama_lahan}\nLuas Area     : ${nf(r.luas_m2)} m² (${nf(r.luas_ha, 4)} Ha)\nRante         : ${nf(r.luas_m2 / 400)} rante (1 rante = 400 m²)\n\nTautan Peta Poligon:\n${link(r)}`;
+  const t = `GeoUkur by Irpan - Data Pengukuran Lahan\nKelompok Tani : ${r.kelompok_tani}\nNama Petani   : ${r.nama_petani}\nBlok Lahan    : ${r.nama_lahan}\nLuas Area     : ${nf(r.luas_m2)} m² (${nf(r.luas_ha, 4)} Ha)\nRante         : ${nf(r.luas_m2 / 400)} rante (1 rante = 400 m²)\nTitik Pusat   : ${c6(ctrOf(r))}\nGoogle Maps   : ${gm(ctrOf(r))}\n\nTautan Peta Poligon:\n${link(r)}`;
   if (how === 'copy') return (navigator.clipboard ? navigator.clipboard.writeText(link(r)) : Promise.reject()).then(() => toast('Tautan disalin'), () => prompt('Salin tautan:', link(r)));
   if (how === 'native' && navigator.share) return navigator.share({ text: t }).catch(() => {});
   window.open('https://wa.me/?text=' + encodeURIComponent(t), '_blank');
@@ -259,12 +263,12 @@ $('#fmt').addEventListener('click', async e => {
   const b = e.target.closest('button[data-f]'); if (!b || !fmtRows.length) return; const f = b.dataset.f, rows = fmtRows;
   if (f === 'wa') { closeFmt(); return rows.length === 1 ? share(rows[0], 'wa') : sharePetani(rows); }
   if (f === 'link') { closeFmt(); const t = rows.length === 1 ? link(rows[0]) : rows.map(r => `${r.nama_lahan || '(tanpa nama)'}: ${link(r)}`).join('\n'); return (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast('Tautan web disalin'), () => prompt('Salin tautan:', t)); }
-  b.disabled = true; toast('Membuat file…');
-  try { const o = await GeoExport.make(f, rows, { colorOf: r => colOf(r.kelompok_tani), link }); closeFmt(); await deliver(o); } catch (er) { toast('Gagal membuat file: ' + er.message); }
+  b.disabled = true; toast(f === 'pdf' || f === 'png' ? 'Membuat file & mengambil citra satelit…' : 'Membuat file…');
+  try { const o = await GeoExport.make(f, rows, { colorOf: r => colOf(r.kelompok_tani), link, nat }); closeFmt(); await deliver(o); } catch (er) { toast('Gagal membuat file: ' + er.message); }
   b.disabled = false;
 });
 function sharePetani(L2) {
-  const m = m2s(L2), t = `GeoUkur by Irpan - Rekap Lahan Petani\nKelompok Tani : ${L2[0].kelompok_tani}\nNama Petani   : ${String(L2[0].nama_petani).trim()}\nJumlah Lahan  : ${L2.length} lahan\nTotal Luas    : ${nf(m)} m² (${nf(m / 1e4, 4)} Ha • ${nf(m / 400)} rante)\n\nRincian:\n` + L2.map((r, i) => `${i + 1}. ${r.nama_lahan || '(tanpa nama)'} — ${nf(r.luas_m2)} m² (${nf(r.luas_ha, 4)} Ha)\n   ${link(r)}`).join('\n');
+  const m = m2s(L2), t = `GeoUkur by Irpan - Rekap Lahan Petani\nKelompok Tani : ${L2[0].kelompok_tani}\nNama Petani   : ${String(L2[0].nama_petani).trim()}\nJumlah Lahan  : ${L2.length} lahan\nTotal Luas    : ${nf(m)} m² (${nf(m / 1e4, 4)} Ha • ${nf(m / 400)} rante)\n\nRincian:\n` + L2.map((r, i) => `${i + 1}. ${r.nama_lahan || '(tanpa nama)'} — ${nf(r.luas_m2)} m² (${nf(r.luas_ha, 4)} Ha)\n   Titik pusat: ${c6(ctrOf(r))}\n   ${link(r)}`).join('\n');
   if (navigator.share) return navigator.share({ text: t }).catch(() => {});
   window.open('https://wa.me/?text=' + encodeURIComponent(t), '_blank');
 }
