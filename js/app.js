@@ -83,29 +83,57 @@ const cm = ls('gu_col') || {};
 const colOf = k => { if (!(k in cm)) { const used = new Set(Object.values(cm)); let i = 0; while (used.has(i) && i < PAL.length) i++; cm[k] = i < PAL.length ? i : Object.keys(cm).length % PAL.length; ls('gu_col', cm); } return PAL[cm[k]]; };
 
 // ---------- Peta ----------
-const T = { sat: () => L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }), osm: () => L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }) };
-let map, base, poly, grp, sg, hl, tmp, sig = '';
+let nat = +ls('gu_nat') || 18; // zoom tertinggi yang citra aslinya ada; di atasnya tile diperbesar, bukan kosong
+const T = { sat: () => L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 21, maxNativeZoom: nat }), osm: () => L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 21, maxNativeZoom: 19 }) };
+let map, base, poly, cas, grp, lg, sg, hl, tmp, sig = '', ptm;
 function initMap() {
-  map = L.map('map', { zoomControl: true, attributionControl: false, tap: true }).setView([3.595, 98.672], 15);
-  base = T[S.layer]().addTo(map); sg = L.layerGroup().addTo(map); hl = L.layerGroup().addTo(map); tmp = L.layerGroup().addTo(map); grp = L.layerGroup().addTo(map);
+  map = L.map('map', { zoomControl: true, attributionControl: false, tap: true, maxZoom: 21 }).setView([3.595, 98.672], 15);
+  base = T[S.layer]().addTo(map); sg = L.layerGroup().addTo(map); hl = L.layerGroup().addTo(map); tmp = L.layerGroup().addTo(map); grp = L.layerGroup().addTo(map); lg = L.layerGroup().addTo(map);
   map.on('click', e => { tmp.clearLayers(); $('#sr').className = 'sr'; if (!S.draw) { const h = polyAt(e.latlng.lat, e.latlng.lng); if (h) show(h, false); else clearHl(); return; } clearHl(); S.pts.push([e.latlng.lat, e.latlng.lng]); draw(); });
+  map.on('moveend', () => { clearTimeout(ptm); ptm = setTimeout(probe, 700); });
   map.on('zoomend', () => $('#map').classList.toggle('nolbl', map.getZoom() < 16)); $('#map').classList.toggle('nolbl', map.getZoom() < 16);
 }
-function setLayer() { S.layer = S.layer === 'sat' ? 'osm' : 'sat'; ls('gu_layer', S.layer); map.removeLayer(base); base = T[S.layer]().addTo(map); base.bringToBack(); }
+function setLayer() { S.layer = S.layer === 'sat' ? 'osm' : 'sat'; ls('gu_layer', S.layer); map.removeLayer(base); base = T[S.layer]().addTo(map); base.bringToBack(); if (S.layer === 'sat') setTimeout(probe, 400); }
+// Tile 'Map data not yet available' = gambar abu-abu rata (tanpa tekstur & tanpa warna). Dideteksi lewat piksel, lalu zoom asli diturunkan.
+function kosong(im) {
+  const c = document.createElement('canvas'); c.width = c.height = 48; const g = c.getContext('2d'); g.drawImage(im, 0, 0, 48, 48); const d = g.getImageData(0, 0, 48, 48).data;
+  let n = 0, s = 0, s2 = 0, sat = 0; for (let i = 0; i < d.length; i += 4) { const l = .299 * d[i] + .587 * d[i + 1] + .114 * d[i + 2]; s += l; s2 += l * l; sat += Math.max(d[i], d[i + 1], d[i + 2]) - Math.min(d[i], d[i + 1], d[i + 2]); n++; }
+  const m = s / n; return Math.sqrt(Math.max(0, s2 / n - m * m)) < 12 && sat / n < 10;
+}
+function probe() {
+  if (!map || S.layer !== 'sat') return; const z = map.getZoom(); if (z < 15 || z > 19) return;
+  const c = map.getCenter(), n = 2 ** z, x = Math.floor((c.lng + 180) / 360 * n), la = rad(c.lat), y = Math.floor((1 - Math.log(Math.tan(la) + 1 / Math.cos(la)) / Math.PI) / 2 * n);
+  const im = new Image(); im.crossOrigin = 'anonymous';
+  im.onload = () => { let k; try { k = kosong(im); } catch (e) { return; }
+    let nn = nat; if (k && z <= nat) nn = Math.max(13, z - 1); else if (!k && z > nat) nn = Math.min(19, z); if (nn === nat) return;
+    nat = nn; ls('gu_nat', nat); base.options.maxNativeZoom = nat; base.redraw(); if (k) toast('Citra satelit paling detail di area ini sampai zoom ' + nat); };
+  im.src = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`;
+}
 function setDraw(on) { // mulai / akhiri pembuatan polygon baru
   S.draw = on; document.body.classList.toggle('drawing', on); $('#b-new').style.display = on ? 'none' : ''; $('#dk2').hidden = !on;
   if (on) { clearHl(); tmp.clearLayers(); toast('Ketuk peta atau tekan + TITIK BARU (bidik silang) untuk menambah titik'); } else { S.pts = []; draw(); }
   setTimeout(() => map && map.invalidateSize(), 50);
 }
 function metrics(p) { const a = area(p); $('#m2').textContent = nf(a); $('#ha').textContent = nf(a / 1e4, 4); $('#km').textContent = nf(a / 400); return a; }
-function draw() { // poligon yang sedang diukur (kuning)
-  grp.clearLayers(); const p = S.pts;
-  poly = L.polygon(p, { color: '#F59E0B', weight: 3, fillColor: '#F59E0B', fillOpacity: .25, interactive: false }).addTo(grp);
+const fm = m => m >= 1000 ? nf(m / 1000, 2) + ' km' : nf(m, m < 100 ? 1 : 0) + ' m';
+function segLabels() { // jarak tiap sisi, diputar mengikuti garis
+  lg.clearLayers(); const p = S.pts, n = p.length; let tot = 0;
+  if (n >= 2) for (let i = 0; i < (n === 2 ? 1 : n); i++) {
+    const a = p[i], b = p[(i + 1) % n], d = dist(a, b), A = map.latLngToContainerPoint(a), B = map.latLngToContainerPoint(b); tot += d;
+    let g = Math.atan2(B.y - A.y, B.x - A.x) * 180 / Math.PI; if (g > 90) g -= 180; if (g <= -90) g += 180;
+    L.marker([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], { interactive: false, icon: L.divIcon({ className: 'seg', iconSize: [0, 0], html: `<span style="transform:translate(-50%,-50%) rotate(${g.toFixed(1)}deg) translateY(-17px)">${fm(d)}</span>` }) }).addTo(lg);
+  }
+  const j = $('#jar'); if (j) { j.hidden = !(S.draw && n >= 2); j.textContent = 'Jarak: ' + nf(tot, 1) + ' m'; }
+}
+function draw() { // polygon yang sedang dibuat: garis hijau + jarak tiap sisi
+  grp.clearLayers(); const p = S.pts, ring = () => p.length > 2 ? p.concat([p[0]]) : p;
+  cas = L.polyline(ring(), { color: '#0F172A', weight: 8, opacity: .55, interactive: false }).addTo(grp);
+  poly = (p.length > 2 ? L.polygon(p, { color: '#22C55E', weight: 4, fillColor: '#22C55E', fillOpacity: .2, interactive: false }) : L.polyline(p, { color: '#22C55E', weight: 4, interactive: false })).addTo(grp);
   p.forEach((q, i) => L.marker(q, { draggable: true, icon: L.divIcon({ className: 'vx', iconSize: [36, 36] }) }).addTo(grp)
-    .on('drag', e => { const l = e.target.getLatLng(); p[i] = [l.lat, l.lng]; poly.setLatLngs(p); metrics(p); }).on('dragend', draw));
-  if (p.length > 1) p.forEach((q, i) => { const n = p[(i + 1) % p.length]; if (p.length < 3 && i) return; L.circleMarker([(q[0] + n[0]) / 2, (q[1] + n[1]) / 2], { radius: 7, weight: 2, color: '#0F172A', fillColor: '#fff', fillOpacity: .85, bubblingMouseEvents: false })
+    .on('drag', e => { const l = e.target.getLatLng(); p[i] = [l.lat, l.lng]; poly.setLatLngs(p); cas.setLatLngs(ring()); metrics(p); segLabels(); }).on('dragend', draw));
+  if (p.length > 1) p.forEach((q, i) => { const n = p[(i + 1) % p.length]; if (p.length < 3 && i) return; L.circleMarker([(q[0] + n[0]) / 2, (q[1] + n[1]) / 2], { radius: 9, weight: 3, color: '#0F172A', fillColor: '#fff', fillOpacity: 1, bubblingMouseEvents: false })
     .addTo(grp).on('click', () => { p.splice(i + 1, 0, [(q[0] + n[0]) / 2, (q[1] + n[1]) / 2]); draw(); }); });
-  metrics(p);
+  metrics(p); segLabels();
 }
 const parse = r => { try { return JSON.parse(r.koordinat_json); } catch (e) { return null; } };
 function renderSaved() { // semua lahan tersimpan, warna per kelompok — tampil kembali setiap buka/sinkron
@@ -133,9 +161,9 @@ function show(row, fit = true) { // lihat lahan tersimpan; pengukuran baru tetap
   <div class="grid"><div><small>LUAS</small><b class="mono">${nf(row.luas_m2)} m²</b></div><div><small>HEKTAR (Ha)</small><b class="mono">${nf(row.luas_ha, 4)}</b></div><div><small>RANTE</small><b class="mono">${nf(row.luas_m2 / 400)}</b></div><div><small>TITIK</small><b class="mono">${row.jumlah_titik}</b></div></div>
   ${row.catatan ? `<div class="box">${esc(row.catatan)}</div>` : ''}
   ${sm.length > 1 ? `<div class="box note">Petani ini memiliki <b>${sm.length} lahan</b> • total <b>${nf(m2s(sm) / 1e4, 4)} Ha</b> (${nf(m2s(sm) / 400)} rante)<button class="sec full" id="c-all" style="margin-top:8px;min-height:44px">Lihat semua lahan petani</button></div>` : ''}
-  <div class="acts"><button class="wa" id="c-wa">${ic('share')} WhatsApp</button><button id="c-cp">${ic('link')} Salin</button><button id="c-gj">${ic('down')} GeoJSON</button></div>`;
+  <div class="acts"><button class="wa" id="c-wa">${ic('share')} WhatsApp</button><button class="pri" id="c-fmt">${ic('down')} Bagikan / Unduh</button></div>`;
   if (sm.length > 1) $('#c-all').onclick = () => showPetani(sm);
-  $('#c-x').onclick = clearHl; $('#c-wa').onclick = () => share(row, 'wa'); $('#c-cp').onclick = () => share(row, 'copy'); $('#c-gj').onclick = () => geojson(row);
+  $('#c-x').onclick = clearHl; $('#c-wa').onclick = () => share(row, 'wa'); $('#c-fmt').onclick = () => openFmt([row], `${row.nama_lahan || '(tanpa nama)'} — ${String(row.nama_petani).trim()}`);
 }
 const link = r => location.origin + location.pathname + '?id=' + r.id;
 function share(r, how) {
@@ -143,11 +171,6 @@ function share(r, how) {
   if (how === 'copy') return (navigator.clipboard ? navigator.clipboard.writeText(link(r)) : Promise.reject()).then(() => toast('Tautan disalin'), () => prompt('Salin tautan:', link(r)));
   if (how === 'native' && navigator.share) return navigator.share({ text: t }).catch(() => {});
   window.open('https://wa.me/?text=' + encodeURIComponent(t), '_blank');
-}
-function geojson(r) {
-  const c = parse(r).map(q => [q[1], q[0]]); c.push(c[0]);
-  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify({ type: 'Feature', properties: { id: r.id, petani: r.nama_petani, kelompok_tani: r.kelompok_tani, luas_m2: r.luas_m2 }, geometry: { type: 'Polygon', coordinates: [c] } })], { type: 'application/geo+json' }));
-  a.download = r.id + '.geojson'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
 
 // ---------- Pencarian: koordinat & nama daerah ----------
@@ -208,9 +231,9 @@ function renderList() {
 $('#grp').addEventListener('toggle', e => { const d = e.target, k = d.dataset && d.dataset.k; if (!k) return; if (k.startsWith('k:')) d.open ? S.cl.delete(k) : S.cl.add(k); else d.open ? S.op.add(k) : S.op.delete(k); }, true);
 $('#grp').onclick = e => {
   const b = e.target.closest('button[data-a]'); if (!b) return; const a = b.dataset.a;
-  if (a === 'pf' || a === 'ps') { const L2 = all().filter(r => petKey(r) === b.parentNode.dataset.k); if (!L2.length) return; if (a === 'pf') { go('peta'); setTimeout(() => showPetani(L2), 60); } else sharePetani(L2); return; }
+  if (a === 'pf' || a === 'ps') { const L2 = all().filter(r => petKey(r) === b.parentNode.dataset.k); if (!L2.length) return; if (a === 'pf') { go('peta'); setTimeout(() => showPetani(L2), 60); } else openFmt(L2, `${String(L2[0].nama_petani).trim()} (rekap ${L2.length} lahan)`); return; }
   const r = all().find(x => x.id === b.parentNode.dataset.id); if (!r) return;
-  if (a === 'f') { go('peta'); setTimeout(() => show(r), 60); } else if (a === 's') share(r, navigator.share ? 'native' : 'wa'); else del(r);
+  if (a === 'f') { go('peta'); setTimeout(() => show(r), 60); } else if (a === 's') openFmt([r], `${r.nama_lahan || '(tanpa nama)'} — ${String(r.nama_petani).trim()}`); else del(r);
 };
 function showPetani(L2) { // semua lahan satu petani sebagai satu kesatuan
   hl.clearLayers(); const pts = [];
@@ -220,9 +243,26 @@ function showPetani(L2) { // semua lahan satu petani sebagai satu kesatuan
   c.innerHTML = `<div class="row"><h3><i class="cd" style="background:${colOf(L2[0].kelompok_tani)}"></i>${esc(String(L2[0].nama_petani).trim())}</h3><button id="c-x" class="x">${ic('x')}</button></div><div>${esc(L2[0].kelompok_tani)} • ${L2.length} lahan</div>
   <div class="grid"><div><small>TOTAL LUAS</small><b class="mono">${tot(m)}</b></div><div><small>TOTAL (Ha)</small><b class="mono">${nf(m / 1e4, 4)}</b></div><div><small>TOTAL RANTE</small><b class="mono">${nf(m / 400)}</b></div><div><small>JUMLAH LAHAN</small><b class="mono">${L2.length}</b></div></div>
   <div class="box">${L2.map(r => `${esc(r.nama_lahan) || '(tanpa nama)'} — ${nf(r.luas_ha, 4)} Ha`).join('<br>')}</div>
-  <div class="acts"><button class="wa" id="c-wa">${ic('share')} Bagikan rekap</button></div>`;
-  $('#c-x').onclick = clearHl; $('#c-wa').onclick = () => sharePetani(L2);
+  <div class="acts"><button class="pri" id="c-fmt">${ic('down')} Bagikan / Unduh rekap</button></div>`;
+  $('#c-x').onclick = clearHl; $('#c-fmt').onclick = () => openFmt(L2, `${String(L2[0].nama_petani).trim()} (rekap ${L2.length} lahan)`);
 }
+// ---------- Bagikan / Unduh (pilih format) ----------
+let fmtRows = [];
+function openFmt(rows, judul) { fmtRows = rows; $('#fmt-t').textContent = judul; document.body.classList.add('sh'); $('#fmt').className = 'sheet on'; }
+const closeFmt = () => { $('#fmt').className = 'sheet'; document.body.classList.remove('sh'); };
+async function deliver(o) { // di HP: lembar bagikan sistem; di komputer: unduh
+  const file = new File([o.blob], o.name, { type: o.mime });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file], title: o.name }); return; } catch (e) { if (e.name === 'AbortError') return; } }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(o.blob); a.download = o.name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 8000); toast('File diunduh: ' + o.name);
+}
+$('#fmt').addEventListener('click', async e => {
+  const b = e.target.closest('button[data-f]'); if (!b || !fmtRows.length) return; const f = b.dataset.f, rows = fmtRows;
+  if (f === 'wa') { closeFmt(); return rows.length === 1 ? share(rows[0], 'wa') : sharePetani(rows); }
+  if (f === 'link') { closeFmt(); const t = rows.length === 1 ? link(rows[0]) : rows.map(r => `${r.nama_lahan || '(tanpa nama)'}: ${link(r)}`).join('\n'); return (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast('Tautan web disalin'), () => prompt('Salin tautan:', t)); }
+  b.disabled = true; toast('Membuat file…');
+  try { const o = await GeoExport.make(f, rows, { colorOf: r => colOf(r.kelompok_tani), link }); closeFmt(); await deliver(o); } catch (er) { toast('Gagal membuat file: ' + er.message); }
+  b.disabled = false;
+});
 function sharePetani(L2) {
   const m = m2s(L2), t = `GeoUkur by Irpan - Rekap Lahan Petani\nKelompok Tani : ${L2[0].kelompok_tani}\nNama Petani   : ${String(L2[0].nama_petani).trim()}\nJumlah Lahan  : ${L2.length} lahan\nTotal Luas    : ${nf(m)} m² (${nf(m / 1e4, 4)} Ha • ${nf(m / 400)} rante)\n\nRincian:\n` + L2.map((r, i) => `${i + 1}. ${r.nama_lahan || '(tanpa nama)'} — ${nf(r.luas_m2)} m² (${nf(r.luas_ha, 4)} Ha)\n   ${link(r)}`).join('\n');
   if (navigator.share) return navigator.share({ text: t }).catch(() => {});
@@ -284,7 +324,7 @@ addEventListener('appinstalled', () => { hideInst(); dp = null; });
 function init() {
   const set = (id, h) => $(id).innerHTML = h;
   set('#b-loc', ic('target')); set('#b-all', ic('fit')); set('#b-undo', ic('undo')); set('#b-reset', ic('trash')); set('#sb', ic('search')); set('#b-sr', ic('search')); set('#sx', ic('x')); set('#inst-x', ic('x'));
-  set('#b-new', ic('plus') + ' Buat Polygon Baru'); set('#b-pt', ic('plus') + ' TITIK BARU'); set('#b-gps', ic('pin') + ' GPS'); set('#s-x', ic('x')); set('#b-sync', ic('sync') + ' Sinkronkan sekarang');
+  set('#b-new', ic('plus') + ' Buat Polygon Baru'); set('#b-pt', ic('plus') + ' TITIK BARU'); set('#b-gps', ic('pin') + ' GPS'); set('#s-x', ic('x')); set('#f-x', ic('x')); $('#f-x').onclick = closeFmt; set('#b-sync', ic('sync') + ' Sinkronkan sekarang');
   const N = document.querySelectorAll('nav button'); N[0].innerHTML = ic('map') + 'PETA'; N[1].innerHTML = ic('list') + 'PERSIL'; N[2].innerHTML = ic('layers') + 'SATELIT'; N[3].innerHTML = ic('sync') + 'SINKRON';
   N.forEach(b => b.onclick = () => b.dataset.v ? go(b.dataset.v) : (setLayer(), toast(S.layer === 'sat' ? 'Citra satelit' : 'Peta jalan')));
   initMap(); draw();

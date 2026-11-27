@@ -1,4 +1,4 @@
-const V='geoukur-v3',S=['./','./index.html','./css/style.css','./js/config.js','./js/app.js','./manifest.json'];
+const V='geoukur-v4',S=['./','./index.html','./css/style.css','./js/config.js','./js/app.js','./js/export.js','./manifest.json'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(V).then(c=>c.addAll(S)));self.skipWaiting()});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==V).map(x=>caches.delete(x)))));self.clients.claim()});
 const keep=(r)=>{if(r.ok||r.type==='opaque'){const c=r.clone();caches.open(V).then(x=>x.put(r.url,c))}return r};
