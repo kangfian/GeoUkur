@@ -34,7 +34,7 @@ function tumpang(A, B) {
 
 // ---------- State & cache ----------
 const cache = ls('gu_rows') || {};
-const S = { rows: cache.rows || [], ver: cache.ver || '', q: ls('gu_q') || [], pts: [], layer: ls('gu_layer') || 'sat', gps: null, last: cache.t || 0, fq: '', fg: '', view: 'peta', net: null, err: '', rej: ls('gu_rej') || [], draw: false, op: new Set(), cl: new Set(), pl: [] };
+const S = { rows: cache.rows || [], ver: cache.ver || '', q: ls('gu_q') || [], pts: [], layer: ls('gu_layer') || 'sat', gps: null, last: cache.t || 0, fq: '', fg: '', view: 'peta', net: null, err: '', rej: ls('gu_rej') || [], draw: false, op: new Set(), cl: new Set(), pl: [], sel: -1 };
 const gasUrl = () => C.GAS_URL || '';
 const okCfg = () => /^https:\/\/script\.google(usercontent)?\.com\//.test(gasUrl()) && !/GANTI|XXXX/.test(gasUrl());
 const saveRows = () => ls('gu_rows', { rows: S.rows, ver: S.ver, t: S.last });
@@ -89,7 +89,7 @@ let map, base, poly, cas, grp, lg, sg, hl, tmp, sig = '', ptm;
 function initMap() {
   map = L.map('map', { zoomControl: true, attributionControl: false, tap: true, maxZoom: 21 }).setView([3.595, 98.672], 15);
   base = T[S.layer]().addTo(map); sg = L.layerGroup().addTo(map); hl = L.layerGroup().addTo(map); tmp = L.layerGroup().addTo(map); grp = L.layerGroup().addTo(map); lg = L.layerGroup().addTo(map);
-  map.on('click', e => { tmp.clearLayers(); $('#sr').className = 'sr'; if (!S.draw) { const h = polyAt(e.latlng.lat, e.latlng.lng); if (h) show(h, false); else clearHl(); return; } clearHl(); S.pts.push([e.latlng.lat, e.latlng.lng]); draw(); });
+  map.on('click', e => { tmp.clearLayers(); $('#sr').className = 'sr'; if (!S.draw) { const h = polyAt(e.latlng.lat, e.latlng.lng); if (h) show(h, false); else clearHl(); return; } clearHl(); S.pts.push([e.latlng.lat, e.latlng.lng]); S.sel = S.pts.length - 1; draw(); });
   map.on('moveend', () => { clearTimeout(ptm); ptm = setTimeout(probe, 700); });
   map.on('zoomend', () => $('#map').classList.toggle('nolbl', map.getZoom() < 16)); $('#map').classList.toggle('nolbl', map.getZoom() < 16);
 }
@@ -111,7 +111,7 @@ function probe() {
 }
 function setDraw(on) { // mulai / akhiri pembuatan polygon baru
   S.draw = on; document.body.classList.toggle('drawing', on); $('#b-new').style.display = on ? 'none' : ''; $('#dk2').hidden = !on;
-  if (on) { clearHl(); tmp.clearLayers(); toast('Ketuk peta atau tekan + TITIK BARU (bidik silang) untuk menambah titik'); } else { S.pts = []; draw(); }
+  if (on) { clearHl(); tmp.clearLayers(); toast('Ketuk peta atau tekan + TITIK BARU. Titik terpilih punya pin merah: geser lewat pin itu agar jari tidak menutupi titik'); } else { S.pts = []; S.sel = -1; draw(); }
   setTimeout(() => map && map.invalidateSize(), 50);
 }
 function metrics(p) { const a = area(p); $('#m2').textContent = nf(a); $('#ha').textContent = nf(a / 1e4, 4); $('#km').textContent = nf(a / 400); return a; }
@@ -129,11 +129,12 @@ function draw() { // polygon yang sedang dibuat: garis hijau + jarak tiap sisi
   grp.clearLayers(); const p = S.pts, ring = () => p.length > 2 ? p.concat([p[0]]) : p;
   cas = L.polyline(ring(), { color: '#0F172A', weight: 8, opacity: .55, interactive: false }).addTo(grp);
   poly = (p.length > 2 ? L.polygon(p, { color: '#22C55E', weight: 4, fillColor: '#22C55E', fillOpacity: .2, interactive: false }) : L.polyline(p, { color: '#22C55E', weight: 4, interactive: false })).addTo(grp);
-  p.forEach((q, i) => { const m = L.marker(q, { draggable: true, icon: L.divIcon({ className: 'vx', iconSize: [36, 36] }) }).addTo(grp), el = m.getElement && m.getElement();
-    if (el) el.addEventListener('pointerdown', () => { el.classList.add('drag'); const off = () => { el.classList.remove('drag'); removeEventListener('pointerup', off); removeEventListener('pointercancel', off); }; addEventListener('pointerup', off); addEventListener('pointercancel', off); }); // pin merah penanda titik yang sedang dipegang
+  p.forEach((q, i) => { const m = L.marker(q, { draggable: true, icon: L.divIcon({ className: 'vx' + (i === S.sel ? ' sel' : ''), iconSize: [36, 36] }) }).addTo(grp); // titik terpilih = pin merah menghadap ke bawah sebagai pegangan geser
+    m.on('click', () => { S.sel = S.sel === i ? -1 : i; draw(); });
+    m.on('dragstart', e => { S.sel = i; const el = e.target.getElement && e.target.getElement(); if (el) el.classList.add('sel'); });
     m.on('drag', e => { const l = e.target.getLatLng(); p[i] = [l.lat, l.lng]; poly.setLatLngs(p); cas.setLatLngs(ring()); metrics(p); segLabels(); }).on('dragend', draw); });
   if (p.length > 1) p.forEach((q, i) => { const n = p[(i + 1) % p.length]; if (p.length < 3 && i) return; L.circleMarker([(q[0] + n[0]) / 2, (q[1] + n[1]) / 2], { radius: 9, weight: 3, color: '#0F172A', fillColor: '#fff', fillOpacity: 1, bubblingMouseEvents: false })
-    .addTo(grp).on('click', () => { p.splice(i + 1, 0, [(q[0] + n[0]) / 2, (q[1] + n[1]) / 2]); draw(); }); });
+    .addTo(grp).on('click', () => { p.splice(i + 1, 0, [(q[0] + n[0]) / 2, (q[1] + n[1]) / 2]); S.sel = i + 1; draw(); }); });
   metrics(p); segLabels();
 }
 const parse = r => { try { return JSON.parse(r.koordinat_json); } catch (e) { return null; } };
@@ -337,10 +338,10 @@ function init() {
   const need = () => S.draw || (toast('Tekan "Buat Polygon Baru" dulu'), false);
   $('#b-new').onclick = () => setDraw(true);
   $('#b-cancel').onclick = () => { if (!S.pts.length || confirm('Batalkan polygon yang sedang dibuat?')) setDraw(false); };
-  $('#b-undo').onclick = () => { if (need()) { S.pts.pop(); draw(); } };
-  $('#b-reset').onclick = () => { if (need() && S.pts.length && confirm('Hapus semua titik?')) { S.pts = []; draw(); } };
-  $('#b-gps').onclick = () => startGps(() => { S.pts.push(S.gps.ll); draw(); map.setView(S.gps.ll, Math.max(map.getZoom(), 19)); });
-  $('#b-pt').onclick = () => { if (!need()) return; const c = map.getCenter(); S.pts.push([c.lat, c.lng]); draw(); };
+  $('#b-undo').onclick = () => { if (need()) { S.pts.pop(); S.sel = S.pts.length - 1; draw(); } };
+  $('#b-reset').onclick = () => { if (need() && S.pts.length && confirm('Hapus semua titik?')) { S.pts = []; S.sel = -1; draw(); } };
+  $('#b-gps').onclick = () => startGps(() => { S.pts.push(S.gps.ll); S.sel = S.pts.length - 1; draw(); map.setView(S.gps.ll, Math.max(map.getZoom(), 19)); });
+  $('#b-pt').onclick = () => { if (!need()) return; const c = map.getCenter(); S.pts.push([c.lat, c.lng]); S.sel = S.pts.length - 1; draw(); };
   $('#b-save').onclick = openSheet; $('#f-kt').addEventListener('input', fillNp);
   const srClose = () => { $('.srch').classList.remove('on'); $('#sq').value = ''; $('#sr').className = 'sr'; tmp.clearLayers(); };
   $('#b-sr').onclick = () => { const b = $('.srch'); if (b.classList.contains('on')) srClose(); else { b.classList.add('on'); $('#sq').focus(); } };
