@@ -111,7 +111,7 @@ function probe() {
 }
 function setDraw(on) { // mulai / akhiri pembuatan polygon baru
   S.draw = on; document.body.classList.toggle('drawing', on); $('#b-new').style.display = on ? 'none' : ''; $('#dk2').hidden = !on;
-  if (on) { clearHl(); tmp.clearLayers(); toast('Ketuk peta atau tekan + TITIK BARU. Titik terpilih punya pin merah: geser lewat pin itu agar jari tidak menutupi titik'); } else { S.pts = []; S.sel = -1; draw(); }
+  if (on) { clearHl(); tmp.clearLayers(); toast('Ketuk peta atau tekan + TITIK BARU. Titik terpilih menampilkan pin merah di bawahnya: geser lewat pin itu agar jari tidak menutupi titik'); } else { S.pts = []; S.sel = -1; draw(); }
   setTimeout(() => map && map.invalidateSize(), 50);
 }
 function metrics(p) { const a = area(p); $('#m2').textContent = nf(a); $('#ha').textContent = nf(a / 1e4, 4); $('#km').textContent = nf(a / 400); return a; }
@@ -129,9 +129,11 @@ function draw() { // polygon yang sedang dibuat: garis hijau + jarak tiap sisi
   grp.clearLayers(); const p = S.pts, ring = () => p.length > 2 ? p.concat([p[0]]) : p;
   cas = L.polyline(ring(), { color: '#0F172A', weight: 8, opacity: .55, interactive: false }).addTo(grp);
   poly = (p.length > 2 ? L.polygon(p, { color: '#22C55E', weight: 4, fillColor: '#22C55E', fillOpacity: .2, interactive: false }) : L.polyline(p, { color: '#22C55E', weight: 4, interactive: false })).addTo(grp);
-  p.forEach((q, i) => { const m = L.marker(q, { draggable: true, icon: L.divIcon({ className: 'vx' + (i === S.sel ? ' sel' : ''), iconSize: [36, 36] }) }).addTo(grp); // titik terpilih = pin merah menghadap ke bawah sebagai pegangan geser
-    m.on('click', () => { S.sel = S.sel === i ? -1 : i; draw(); });
-    m.on('dragstart', e => { S.sel = i; const el = e.target.getElement && e.target.getElement(); if (el) el.classList.add('sel'); });
+  p.forEach((q, i) => { const m = L.marker(q, { draggable: true, icon: L.divIcon({ className: 'vx' + (i === S.sel ? ' sel' : ''), iconSize: [36, 36] }) }).addTo(grp), el = m.getElement && m.getElement(); let was = false;
+    // begitu titik ditekan: pin merah langsung muncul DI BAWAH titik (ujung runcing di titik) sebagai pegangan geser
+    if (el) el.addEventListener('pointerdown', () => { was = S.sel === i; S.sel = i; document.querySelectorAll('.vx.sel').forEach(x => x.classList.remove('sel')); el.classList.add('sel'); });
+    m.on('click', () => { if (was) S.sel = -1; draw(); });
+    m.on('dragstart', () => { was = false; S.sel = i; });
     m.on('drag', e => { const l = e.target.getLatLng(); p[i] = [l.lat, l.lng]; poly.setLatLngs(p); cas.setLatLngs(ring()); metrics(p); segLabels(); }).on('dragend', draw); });
   if (p.length > 1) p.forEach((q, i) => { const n = p[(i + 1) % p.length]; if (p.length < 3 && i) return; L.circleMarker([(q[0] + n[0]) / 2, (q[1] + n[1]) / 2], { radius: 9, weight: 3, color: '#0F172A', fillColor: '#fff', fillOpacity: 1, bubblingMouseEvents: false })
     .addTo(grp).on('click', () => { p.splice(i + 1, 0, [(q[0] + n[0]) / 2, (q[1] + n[1]) / 2]); S.sel = i + 1; draw(); }); });
