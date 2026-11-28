@@ -111,7 +111,7 @@ function probe() {
 }
 function setDraw(on) { // mulai / akhiri pembuatan polygon baru
   S.draw = on; document.body.classList.toggle('drawing', on); $('#b-new').style.display = on ? 'none' : ''; $('#dk2').hidden = !on;
-  if (on) { clearHl(); tmp.clearLayers(); toast('Ketuk peta atau tekan + TITIK BARU. Untuk menggeser, ketuk titik: pin merah muncul di bawahnya, geser lewat pin itu agar jari tidak menutupi titik'); } else { S.pts = []; S.sel = -1; draw(); }
+  if (on) { clearHl(); tmp.clearLayers(); toast('Ketuk peta atau tekan + TITIK BARU. Untuk menggeser titik, tekan titiknya: pin merah muncul di bawahnya, geser lewat pin itu agar jari tidak menutupi titik'); } else { S.pts = []; S.sel = -1; draw(); }
   setTimeout(() => map && map.invalidateSize(), 50);
 }
 function metrics(p) { const a = area(p); $('#m2').textContent = nf(a); $('#ha').textContent = nf(a / 1e4, 4); $('#km').textContent = nf(a / 400); return a; }
@@ -134,7 +134,7 @@ function draw() { // polygon yang sedang dibuat: garis hijau + jarak tiap sisi
     if (el) el.addEventListener('pointerdown', () => { was = S.sel === i; S.sel = i; document.querySelectorAll('.vx.sel').forEach(x => x.classList.remove('sel')); el.classList.add('sel'); });
     m.on('click', () => { if (was) S.sel = -1; draw(); });
     m.on('dragstart', () => { was = false; S.sel = i; });
-    m.on('drag', e => { const l = e.target.getLatLng(); p[i] = [l.lat, l.lng]; poly.setLatLngs(p); cas.setLatLngs(ring()); metrics(p); segLabels(); }).on('dragend', draw); });
+    m.on('drag', e => { const l = e.target.getLatLng(); p[i] = [l.lat, l.lng]; poly.setLatLngs(p); cas.setLatLngs(ring()); metrics(p); segLabels(); }).on('dragend', () => { S.sel = -1; draw(); }); }); // selesai menggeser: pin hilang
   if (p.length > 1) p.forEach((q, i) => { const n = p[(i + 1) % p.length]; if (p.length < 3 && i) return; L.circleMarker([(q[0] + n[0]) / 2, (q[1] + n[1]) / 2], { radius: 9, weight: 3, color: '#0F172A', fillColor: '#fff', fillOpacity: 1, bubblingMouseEvents: false })
     .addTo(grp).on('click', () => { p.splice(i + 1, 0, [(q[0] + n[0]) / 2, (q[1] + n[1]) / 2]); S.sel = -1; draw(); }); });
   metrics(p); segLabels();
@@ -294,7 +294,7 @@ $('#s-ok').onclick = () => {
   if (!kt || !np) return toast('Kelompok tani & nama petani wajib diisi');
   const a = area(S.pts), p = { id: 'LHN-' + Date.now(), kelompok_tani: kt, nama_petani: np, nama_lahan: v('#f-nl'), luas_m2: +a.toFixed(2), luas_ha: +(a / 1e4).toFixed(4), keliling_m: +perim(S.pts).toFixed(2), jumlah_titik: S.pts.length, koordinat_json: JSON.stringify(S.pts.map(q => [+q[0].toFixed(7), +q[1].toFixed(7)])), catatan: v('#f-ct') };
   S.q.push(p); saveQ(); setDraw(false); ['#f-np', '#f-nl', '#f-ct'].forEach(i => $(i).value = ''); closeSheet();
-  toast(okCfg() ? 'Tersimpan di perangkat — menyinkronkan…' : 'Tersimpan di perangkat. Isi GAS_URL di js/config.js agar masuk ke Google Sheets'); renderAll(); flush();
+  toast(okCfg() ? 'Tersimpan di perangkat — menyinkronkan…' : 'Tersimpan di perangkat. Isi GAS_URL di js/config.js agar tersimpan ke server'); renderAll(); flush();
 };
 
 // ---------- Tampilan ----------
